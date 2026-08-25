@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.venv/
+node_modules/
+.next/
+dist/
+coverage/
+.coverage
+.pytest_cache/
+.ruff_cache/
+apps/api/db.sqlite3
