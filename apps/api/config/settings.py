@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("D_SECRET_KEY")
 if not SECRET_KEY:
-    raise ValueError("SECRET_KEY not exist in .env file")
+    raise ValueError("SECRET_KEY not exist in .env.api file")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG_STATUS")
