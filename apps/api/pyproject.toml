@@ -5,6 +5,8 @@ requires-python = ">=3.12"
 dependencies = [
     "django>=6.1",
     "djangorestframework>=3.18.0",
+    "psycopg[binary]>=3.3.4",
+    "python-dotenv>=1.2.3",
 ]
 
 [dependency-groups]
