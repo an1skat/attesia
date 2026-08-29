@@ -5,8 +5,15 @@ from .models import User
 
 # admin.site.register(User, UserAdmin)
 
+
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    ordering = ("email", )
+    ordering = ("email",)
 
-    list_display = ("email", "display_name", "is_staff", "is_active", "is_superuser", )
+    list_display = (
+        "email",
+        "display_name",
+        "is_staff",
+        "is_active",
+        "is_superuser",
+    )
