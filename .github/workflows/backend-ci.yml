@@ -15,6 +15,29 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: attesia_ci
+          POSTGRES_USER: attesia
+          POSTGRES_PASSWORD: attesia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U attesia -d attesia_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_DB: attesia_ci
+      POSTGRES_USER: attesia
+      POSTGRES_PASSWORD: attesia
+      DB_HOST: localhost
+      DB_PORT: "5432"
+
     defaults:
       run:
         working-directory: apps/api
@@ -43,3 +66,9 @@ jobs:
 
       - name: Django system check
         run: uv run python manage.py check
+
+      - name: Check migrations
+        run: uv run python manage.py makemigrations --check --dry-run
+
+      - name: Test
+        run: uv run pytest
