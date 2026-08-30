@@ -2,6 +2,7 @@ from typing import ClassVar
 
 from django.core.cache import cache
 from django.db import connections
+from django.db.utils import OperationalError
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -23,9 +24,11 @@ class HealthAPICheck(APIView):
         is_healthy = True
 
         try:
-            if not self.db_connection.is_usable():
-                is_healthy = False
-                services["database"] = "unhealthy"
+            with self.db_connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        except OperationalError:
+            services["database"] = "unhealthy"
+            is_healthy = False
         except Exception:
             services["database"] = "unhealthy"
             is_healthy = False
