@@ -2,7 +2,6 @@ from typing import ClassVar
 
 from django.core.cache import cache
 from django.db import connections
-from django.db.utils import OperationalError
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -13,29 +12,45 @@ class HealthAPICheck(APIView):
     permission_classes: ClassVar[list] = []
     authentication_classes: ClassVar[list] = []
 
+    db_connection = connections["default"]
+    cache_provider = cache
+
     def get(self, request: Request, *args, **kwargs) -> Response:
-        health_status = {
-            "status": "healthy",
-            "services": {
-                "database": "unhealthy",
-                "cache": "unhealthy",
-            },
+        services = {
+            "database": "healthy",
+            "cache": "healthy",
         }
-        try:
-            db_conn = connections["default"]
-            db_conn.cursor()
-            health_status["services"]["database"] = "healthy"
-        except OperationalError:
-            health_status["status"] = "unhealthy"
+        is_healthy = True
 
         try:
-            cache.set("healthy_check_key", "ok", timeout=5)
-            if cache.get("healthy_check_key") == "ok":
-                health_status["services"]["cache"] = "healthy"
+            if not self.db_connection.is_usable():
+                is_healthy = False
+                services["database"] = "unhealthy"
         except Exception:
-            health_status["status"] = "unhealthy"
+            services["database"] = "unhealthy"
+            is_healthy = False
 
-        if health_status["status"] == "healthy":
-            return Response(health_status, status=status.HTTP_200_OK)
+        try:
+            if hasattr(self.cache_provider, "ping") and callable(
+                self.cache_provider.ping
+            ):
+                self.cache_provider.ping()
+            else:
+                self.cache_provider.set("healthy_cache_key", "ok", timeout=5)
+                if self.cache_provider.get("healthy_cache_key") != "ok":
+                    raise ValueError("Cache read/write failed")
+        except Exception:
+            services["cache"] = "unhealthy"
+            is_healthy = False
 
-        return Response(health_status, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        response_data = {
+            "status": "healthy" if is_healthy else "unhealthy",
+            "services": services,
+        }
+
+        return Response(
+            response_data,
+            status=status.HTTP_200_OK
+            if is_healthy
+            else status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
