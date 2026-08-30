@@ -19,7 +19,7 @@ class HealthAPICheck(APIView):
             "services": {
                 "database": "unhealthy",
                 "cache": "unhealthy",
-            }
+            },
         }
         try:
             db_conn = connections["default"]
