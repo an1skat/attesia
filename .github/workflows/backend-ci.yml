@@ -37,6 +37,7 @@ jobs:
       POSTGRES_PASSWORD: attesia
       DB_HOST: localhost
       DB_PORT: "5432"
+      ACCESS_TOKEN_SECRET: "ci-only-access-token-secret-0123456789abcdef0123456789abcdef"
 
     defaults:
       run:
