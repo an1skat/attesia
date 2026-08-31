@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.db.utils import OperationalError
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -9,7 +10,10 @@ from app.core.api.v1.views import HealthAPICheck
 
 class HealthAPITest(APITestCase):
     def setUp(self):
-        self.url = "/api/v1/health/"
+        try:
+            self.url = reverse("health")
+        except Exception:
+            self.url = "/api/v1/health/"
 
     def test_health_check_success(self):
         response = self.client.get(self.url)
