@@ -10,10 +10,7 @@ from app.core.api.v1.views import HealthAPICheck
 
 class HealthAPITest(APITestCase):
     def setUp(self):
-        try:
-            self.url = reverse("v1:health")
-        except Exception:
-            self.url = "/api/v1/health/"
+        self.url = reverse("v1:health-check")
 
     def test_health_check_success(self):
         response = self.client.get(self.url)

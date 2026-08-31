@@ -20,8 +20,6 @@ dev = [
 "**/migrations/*.py" = ["I001", "RUF012"]
 "**/core/api/v1/views.py" = ["B015", "BLE001"]
 "**/modules/users/api/v1/serializers.py" = ["RUF012"]
-"**/tests/test_healthy_check_endpoint.py" = ["BLE001"]
-"**/tests/test_user_registration.py" = ["BLE001"]
 
 [tool.ruff.format]
 exclude = ["**/migrations/*.py"]

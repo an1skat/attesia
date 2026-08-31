@@ -8,10 +8,7 @@ User = get_user_model()
 
 class UserRegistrationTest(APITestCase):
     def setUp(self):
-        try:
-            self.register_url = reverse("users:register")
-        except Exception:
-            self.register_url = "/api/v1/auth/register/"
+        self.register_url = reverse("users:register")
 
         self.user_data = {
             "display_name": "test_user",
@@ -52,3 +49,16 @@ class UserRegistrationTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.data)
+
+    def test_registration_weak_password(self):
+        weak_data = {
+            "display_name": "weak_user",
+            "email": "test_thirst@example.com",
+            "password": "1234",
+        }
+
+        response = self.client.post(self.register_url, weak_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+        self.assertTrue(len(response.data["password"]) > 0)
