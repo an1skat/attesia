@@ -9,7 +9,7 @@ User = get_user_model()
 class UserRegistrationTest(APITestCase):
     def setUp(self):
         try:
-            self.register_url = reverse("register")
+            self.register_url = reverse("users:register")
         except Exception:
             self.register_url = "/api/v1/auth/register/"
 

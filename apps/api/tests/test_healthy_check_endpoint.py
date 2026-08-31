@@ -11,7 +11,7 @@ from app.core.api.v1.views import HealthAPICheck
 class HealthAPITest(APITestCase):
     def setUp(self):
         try:
-            self.url = reverse("health")
+            self.url = reverse("v1:health")
         except Exception:
             self.url = "/api/v1/health/"
 
