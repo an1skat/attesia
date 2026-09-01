@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,6 +27,16 @@ load_dotenv(BASE_DIR / ".env")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("D_SECRET_KEY", "django-insecure-development-only")
+
+ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
+if not ACCESS_TOKEN_SECRET:
+    raise ImproperlyConfigured("ACCESS_TOKEN_SECRET must be set")
+
+if len(ACCESS_TOKEN_SECRET.encode()) < 32:
+    raise ImproperlyConfigured("ACCESS_TOKEN_SECRET must be at least 32 bytes")
+
+ACCESS_TOKEN_ALGORITHM = "HS256"
+ACCESS_TOKEN_LIFETIME = timedelta(minutes=10)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG_STATUS", "true").lower() == "true"
