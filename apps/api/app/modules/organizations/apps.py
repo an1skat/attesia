@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class UsersConfig(AppConfig):
+class OrganizationConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"  # type: ignore
-    name = "app.modules.users"
+    name = "app.modules.organizations"
