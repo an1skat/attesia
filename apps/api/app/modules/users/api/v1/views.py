@@ -8,13 +8,18 @@ from rest_framework.views import APIView
 
 from app.modules.users.services import UserService
 
-from .serializers import UserRegisterSerializer
+from .serializers import (
+    RefreshTokenSerializer,
+    UserLoginSerializer,
+    UserRegisterSerializer,
+)
 
 User = get_user_model()
 
 
 class RegisterView(APIView):
     permission_classes: ClassVar[list] = [AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         serializer = UserRegisterSerializer(data=request.data)
@@ -23,3 +28,23 @@ class RegisterView(APIView):
         user = UserService.register_user(serializer.validated_data)
         response_serializer = UserRegisterSerializer(user)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class LoginView(APIView):
+    permission_classes: ClassVar[list] = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = UserLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+
+class CustomRefreshToken(APIView):
+    permission_classes: ClassVar[list] = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = RefreshTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
