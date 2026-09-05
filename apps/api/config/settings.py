@@ -133,7 +133,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
 }
 
-REFRESH_TOKEN_LIFETIME = 30
+REFRESH_TOKEN_LIFETIME_DAYS = 30
 
 
 # Internationalization

@@ -1,4 +1,5 @@
-import secrets
+import uuid
+from datetime import timedelta
 from typing import ClassVar
 
 from django.conf import settings
@@ -39,18 +40,35 @@ class UserRefreshToken(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="refresh_token",
+        related_name="refresh_tokens",
     )
-    token = models.CharField(max_length=255, unique=True, db_index=True)
+    token_hash = models.CharField(max_length=255, unique=True, db_index=True)
+
+    family_id = models.UUIDField(default=uuid.uuid4, db_index=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
 
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None and timezone.now() < self.expires_at
+
+    def revoke(self):
+        if not self.revoked_at:
+            self.revoked_at = timezone.now()
+            self.save(update_fields=["revoked_at"])
+
+    @classmethod
+    def revoke_family(cls, family_id: uuid.UUID):
+        cls.objects.filter(family_id=family_id, revoked_at__isnull=True).update(
+            revoked_at=timezone.now()
+        )
+
     def save(self, *args, **kwargs):
-        if not self.token:
-            self.token = secrets.token_urlsafe(48)
         if not self.expires_at:
             days = getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 30)
-            self.expires_at = timezone.now() + timezone.timedelta(days=days)
+            self.expires_at = timezone.now() + timedelta(days=days)
         super().save(*args, **kwargs)
 
     @property
