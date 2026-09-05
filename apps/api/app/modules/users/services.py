@@ -89,7 +89,9 @@ class UserService:
                 access_token = str(AccessToken.for_user(token_obj.user))
 
         if is_compromised:
-            raise exceptions.ValidationError({"refresh": "Token has been revoked. Family compromised."})
+            raise exceptions.ValidationError(
+                {"refresh": "Token has been revoked. Family compromised."}
+            )
 
         if is_expired:
             raise exceptions.ValidationError({"refresh": "Token has expired"})
