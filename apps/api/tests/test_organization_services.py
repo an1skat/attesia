@@ -16,11 +16,11 @@ pytestmark = pytest.mark.django_db
 def test_create_organization_with_owner():
     owner = User.objects.create_user(email="owner@example.com", display_name="Owner")
 
-    organization = create_organization(owner=owner, name=" \tOpenAI\n\u00a0")
+    organization = create_organization(owner=owner, name=" \tattesia\n\u00a0")
 
     assert Organization.objects.get() == organization
     organization.refresh_from_db()
-    assert organization.name == "OpenAI"
+    assert organization.name == "attesia"
     membership = OrganizationMembership.objects.get()
     assert membership.organization == organization
     assert membership.user == owner
@@ -52,14 +52,14 @@ def test_create_organization_rolls_back_if_membership_fails():
         ),
         pytest.raises(IntegrityError, match="Membership creation failed"),
     ):
-        create_organization(owner=owner, name="OpenAI")
+        create_organization(owner=owner, name="attesia")
 
     assert not Organization.objects.exists()
     assert not OrganizationMembership.objects.exists()
     assert User.objects.filter(pk=owner.pk).exists()
 
 
-@pytest.mark.parametrize("name", ["OpenAI", "openai", " OPENAI\t"])
+@pytest.mark.parametrize("name", ["Attesia", "attesia", " ATTESIA\t"])
 def test_create_organization_allows_duplicate_names(name):
     first_owner = User.objects.create_user(
         email="first@example.com", display_name="First"
@@ -67,7 +67,7 @@ def test_create_organization_allows_duplicate_names(name):
     other_owner = User.objects.create_user(
         email="other@example.com", display_name="Other"
     )
-    organization = create_organization(owner=first_owner, name="OpenAI")
+    organization = create_organization(owner=first_owner, name="attesia")
 
     other_organization = create_organization(owner=other_owner, name=name)
 
