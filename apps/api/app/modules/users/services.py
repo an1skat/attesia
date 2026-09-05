@@ -51,6 +51,7 @@ class UserService:
         return raw_token, refresh_obj
 
     @classmethod
+    @transaction.atomic
     def rotate_refresh_token(cls, raw_token: str) -> tuple[str, str]:
         if not raw_token:
             raise exceptions.ValidationError(
@@ -58,27 +59,26 @@ class UserService:
             )
 
         incoming_hash = hash_token(raw_token)
-        token_obj = UserRefreshToken.objects.filter(token_hash=incoming_hash).first()
+        token_obj = (
+            UserRefreshToken.objects.select_for_update()
+            .filter(token_hash=incoming_hash)
+            .first()
+        )
 
         if not token_obj:
             raise exceptions.ValidationError({"refresh": "Invalid refresh token"})
 
         if token_obj.revoked_at is not None:
-            UserRefreshToken.objects.filter(
-                family_id=token_obj.family_id,
-                revoked_at__isnull=True,
-            ).update(revoked_at=timezone.now())
+            UserRefreshToken.revoke_family(token_obj.family_id)
             raise exceptions.ValidationError(
                 {"refresh": "Token has been revoked. Family compromised."}
             )
 
         if token_obj.expires_at < timezone.now():
-            token_obj.revoked_at = timezone.now()
-            token_obj.save(update_fields=["revoked_at"])
+            token_obj.revoke()
             raise exceptions.ValidationError({"refresh": "Refresh token expired"})
 
-        token_obj.revoked_at = timezone.now()
-        token_obj.save(update_fields=["revoked_at"])
+        token_obj.revoke()
 
         new_raw_refresh, _ = cls.create_refresh_token_for_user(
             user=token_obj.user,
