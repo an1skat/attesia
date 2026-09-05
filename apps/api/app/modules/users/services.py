@@ -51,7 +51,6 @@ class UserService:
         return raw_token, refresh_obj
 
     @classmethod
-    @transaction.atomic
     def rotate_refresh_token(cls, raw_token: str) -> tuple[str, str]:
         if not raw_token:
             raise exceptions.ValidationError(
@@ -59,31 +58,40 @@ class UserService:
             )
 
         incoming_hash = hash_token(raw_token)
-        token_obj = (
-            UserRefreshToken.objects.select_for_update()
-            .filter(token_hash=incoming_hash)
-            .first()
-        )
-
-        if not token_obj:
-            raise exceptions.ValidationError({"refresh": "Invalid refresh token"})
-
-        if token_obj.revoked_at is not None:
-            UserRefreshToken.revoke_family(token_obj.family_id)
-            raise exceptions.ValidationError(
-                {"refresh": "Token has been revoked. Family compromised."}
+        with transaction.atomic():
+            token_obj = (
+                UserRefreshToken.objects.select_for_update()
+                .filter(token_hash=incoming_hash)
+                .first()
             )
 
-        if token_obj.expires_at < timezone.now():
-            token_obj.revoke()
-            raise exceptions.ValidationError({"refresh": "Refresh token expired"})
+            if not token_obj:
+                raise exceptions.ValidationError({"refresh": "Invalid refresh token"})
 
-        token_obj.revoke()
+            if token_obj.revoked_at is not None:
+                UserRefreshToken.revoke_family(token_obj.family_id)
+                is_compromised = True
+            else:
+                is_compromised = False
 
-        new_raw_refresh, _ = cls.create_refresh_token_for_user(
-            user=token_obj.user,
-            family_id=token_obj.family_id,
-        )
-        access_token = str(AccessToken.for_user(token_obj.user))
+            if not is_compromised and token_obj.expires_at < timezone.now():
+                token_obj.revoke()
+                is_expired = True
+            else:
+                is_expired = False
+
+            if not is_compromised and not is_expired:
+                token_obj.revoke()
+                new_raw_refresh, _ = cls.create_refresh_token_for_user(
+                    user=token_obj.user,
+                    family_id=token_obj.family_id,
+                )
+                access_token = str(AccessToken.for_user(token_obj.user))
+
+        if is_compromised:
+            raise exceptions.ValidationError({"refresh": "Token has been revoked. Family compromised."})
+
+        if is_expired:
+            raise exceptions.ValidationError({"refresh": "Token has expired"})
 
         return access_token, new_raw_refresh

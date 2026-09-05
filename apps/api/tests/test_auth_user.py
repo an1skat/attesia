@@ -194,3 +194,103 @@ class AuthAPITestCase(APITestCase):
 
         token_2.refresh_from_db()
         self.assertIsNotNone(token_2.revoked_at)
+
+    def test_successful_token_rotation(self):
+        raw_token, old_token_obj = self._create_refresh_token()
+
+        self.client.cookies["refresh_token"] = raw_token
+        response = self.client.post(self.refresh_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+        old_token_obj.refresh_from_db()
+        self.assertIsNotNone(old_token_obj.revoked_at)
+
+        self.assertIn("refresh_token", response.cookies)
+        new_raw_token = response.cookies["refresh_token"].value
+        self.assertNotEqual(raw_token, new_raw_token)
+
+        new_hashed = hashlib.sha256(new_raw_token.encode("utf-8")).hexdigest()
+        new_token_obj = UserRefreshToken.objects.get(token_hash=new_hashed)
+
+        self.assertEqual(new_token_obj.family_id, old_token_obj.family_id)
+        self.assertIsNone(new_token_obj.revoked_at)
+
+        try:
+            AccessToken(response.data["access"])
+        except Exception:
+            self.fail("Выданный Access token не является валидным JWT")
+
+    def test_reuse_detection_revokes_entire_token_family(self):
+        family_id = uuid.uuid4()
+
+        raw_token_a, token_a = self._create_refresh_token(
+            family_id=family_id,
+            revoked_at=timezone.now(),
+        )
+
+        raw_token_b, token_b = self._create_refresh_token(
+            family_id=family_id,
+        )
+
+        self.client.cookies["refresh_token"] = raw_token_a
+        response = self.client.post(self.refresh_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("compromised", str(response.data).lower())
+
+        token_b.refresh_from_db()
+        self.assertIsNotNone(token_b.revoked_at)
+
+        self.client.cookies["refresh_token"] = raw_token_b
+        response_b = self.client.post(self.refresh_url)
+        self.assertEqual(response_b.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_expired_token_rotation_fails_and_revokes(self):
+        expired_date = timezone.now() - timezone.timedelta(days=1)
+        raw_token, token_obj = self._create_refresh_token(expires_at=expired_date)
+
+        self.client.cookies["refresh_token"] = raw_token
+        response = self.client.post(self.refresh_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expired", str(response.data).lower())
+
+        token_obj.refresh_from_db()
+        self.assertIsNotNone(token_obj.revoked_at)
+
+    def test_missing_cookie_returns_bad_request(self):
+        response = self.client.post(self.refresh_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("missing", str(response.data).lower())
+
+    def test_non_existent_token_returns_bad_request(self):
+        self.client.cookies["refresh_token"] = secrets.token_urlsafe(32)
+        response = self.client.post(self.refresh_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invalid", str(response.data).lower())
+
+    def test_end_to_end_rotation_chain(self):
+        raw_token_a, token_a_obj = self._create_refresh_token()
+        self.client.cookies["refresh_token"] = raw_token_a
+        res_1 = self.client.post(self.refresh_url)
+        self.assertEqual(res_1.status_code, status.HTTP_200_OK)
+        raw_token_b = res_1.cookies["refresh_token"].value
+
+        self.client.cookies["refresh_token"] = raw_token_b
+        res_2 = self.client.post(self.refresh_url)
+        self.assertEqual(res_2.status_code, status.HTTP_200_OK)
+        raw_token_c = res_2.cookies["refresh_token"].value
+
+        self.assertNotEqual(raw_token_b, raw_token_c)
+
+        self.client.cookies["refresh_token"] = raw_token_a
+        res_3 = self.client.post(self.refresh_url)
+        self.assertEqual(res_3.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.client.cookies["refresh_token"] = raw_token_c
+        res_4 = self.client.post(self.refresh_url)
+        self.assertEqual(res_4.status_code, status.HTTP_400_BAD_REQUEST)

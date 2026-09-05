@@ -1,5 +1,4 @@
 import uuid
-from datetime import timedelta
 from typing import ClassVar
 
 from django.conf import settings
@@ -68,7 +67,7 @@ class UserRefreshToken(models.Model):
     def save(self, *args, **kwargs):
         if not self.expires_at:
             days = getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 30)
-            self.expires_at = timezone.now() + timedelta(days=days)
+            self.expires_at = timezone.now() + timezone.timedelta(days=days)
         super().save(*args, **kwargs)
 
     @property
