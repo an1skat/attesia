@@ -1,16 +1,13 @@
-import hashlib
-import secrets
 import uuid
 
 from rest_framework_simplejwt.tokens import AccessToken
 
-
-def hash_token(raw_token: str) -> str:
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-
-def generate_raw_token() -> str:
-    return secrets.token_urlsafe(32)
+# def hash_token(raw_token: str) -> str:
+#     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+#
+#
+# def generate_raw_token() -> str:
+#     return secrets.token_urlsafe(32)
 
 
 def generate_auth_tokens(user, family_id: uuid.UUID | None = None) -> dict[str, str]:
