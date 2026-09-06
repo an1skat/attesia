@@ -130,6 +130,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "sub",
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
 }
 

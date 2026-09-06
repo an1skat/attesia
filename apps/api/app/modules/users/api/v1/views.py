@@ -3,7 +3,7 @@ from typing import ClassVar
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
@@ -13,6 +13,7 @@ from app.modules.users.services import UserService
 from .serializers import (
     RefreshTokenSerializer,
     UserLoginSerializer,
+    UserMeSerializer,
     UserRegisterSerializer,
 )
 
@@ -30,6 +31,14 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         max_age=3600 * 24 * days,
         path="/",
     )
+
+
+class UserProfileView(APIView):
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserMeSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class RegisterView(APIView):
