@@ -1,6 +1,12 @@
 from rest_framework import status
-from rest_framework.generics import RetrieveAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.filters import SearchFilter
+from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -26,14 +32,14 @@ class MyOrganizationsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class OrganizationCreateView(APIView):
-    permission_classes = (IsAuthenticated,)
+class OrganizationPagination(PageNumberPagination):
+    page_size = 20
 
-    def post(self, request):
-        serializer = OrganizationSerializer(
-            data=request.data, context={"request": request}
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+class OrganizationListCreateView(ListCreateAPIView):
+    permission_classes = (IsAuthenticatedOrReadOnly,)
+    queryset = Organization.objects.order_by("pk")
+    serializer_class = OrganizationSerializer
+    pagination_class = OrganizationPagination
+    filter_backends = (SearchFilter,)
+    search_fields = ("name",)

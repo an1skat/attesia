@@ -245,3 +245,88 @@ def test_get_organization_with_invalid_id_returns_404(organization_id):
     response = APIClient().get(f"/api/v1/organizations/{organization_id}/")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_organizations_is_public(client, owner, url, authenticated):
+    other = User.objects.create_user(email="other@example.com", display_name="Other")
+    first = create_organization(owner=owner, name="Z")
+    second = create_organization(owner=other, name="A")
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == 2
+    assert response.data["next"] is None
+    assert response.data["previous"] is None
+    assert [item["id"] for item in response.data["results"]] == [first.pk, second.pk]
+    for item in response.data["results"]:
+        assert set(item) == {"id", "name", "created_at", "updated_at"}
+
+
+@pytest.mark.parametrize(
+    "search, expected_names",
+    [
+        ("tEs", ["Attesia Events", "Attesia Music"]),
+        ("  attesia  ", ["Attesia Events", "Attesia Music"]),
+        ("attesia music", ["Attesia Music"]),
+        ("КИЇВ", ["Музичний Київ"]),
+        ("missing", []),
+        ("owner@example.com", []),
+        ("", ["Attesia Events", "Attesia Music", "Музичний Київ"]),
+        ("   ", ["Attesia Events", "Attesia Music", "Музичний Київ"]),
+    ],
+)
+def test_search_organizations_by_name(owner, url, search, expected_names):
+    for name in ["Attesia Events", "Attesia Music", "Музичний Київ"]:
+        create_organization(owner=owner, name=name)
+
+    response = APIClient().get(url, {"search": search})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == len(expected_names)
+    assert [item["name"] for item in response.data["results"]] == expected_names
+
+
+def test_list_organizations_paginates_search_in_stable_order(owner, url):
+    create_organization(owner=owner, name="Unrelated")
+    organizations = [
+        create_organization(owner=owner, name="Attesia") for _ in range(21)
+    ]
+    create_organization(owner=owner, name="Another unrelated organization")
+    client = APIClient()
+
+    first = client.get(url, {"search": "attesia"})
+
+    assert first.status_code == status.HTTP_200_OK
+    assert first.data["count"] == 21
+    assert first.data["previous"] is None
+    assert first.data["next"] is not None
+    assert [item["id"] for item in first.data["results"]] == [
+        organization.pk for organization in organizations[:20]
+    ]
+
+    second = client.get(first.data["next"])
+
+    assert second.status_code == status.HTTP_200_OK
+    assert second.data["count"] == 21
+    assert second.data["next"] is None
+    assert second.data["previous"] is not None
+    assert [item["id"] for item in second.data["results"]] == [organizations[20].pk]
+    assert client.get(second.data["previous"]).data == first.data
+
+
+def test_list_organizations_returns_empty_page(url):
+    response = APIClient().get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == {"count": 0, "next": None, "previous": None, "results": []}
+
+
+@pytest.mark.parametrize("page", ["0", "-1", "invalid", "2"])
+def test_list_organizations_rejects_invalid_or_missing_page(url, page):
+    response = APIClient().get(url, {"page": page})
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
