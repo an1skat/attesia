@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import exceptions
@@ -29,7 +30,11 @@ class UserService:
         for attr, value in data.items():
             setattr(user, attr, value)
 
-        user.full_clean()
+        try:
+            user.full_clean()
+        except DjangoValidationError as err:
+            raise exceptions.ValidationError(err.message_dict)
+
         user.save()
         return user
 

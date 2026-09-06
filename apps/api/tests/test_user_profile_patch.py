@@ -81,14 +81,14 @@ class UserProfilePatchTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.data)
 
-    def test_patch_duplicate_email(self):
+    def test_patch_duplicate_email_case_insensitive(self):
         User.objects.create_user(
             email="occupied@example.com",
             password="StrongPassword123!",
             display_name="Other User",
         )
 
-        payload = {"email": "occupied@example.com"}
+        payload = {"email": "occupied@EXAMPLE.COM"}
         response = self.client.patch(
             self.profile_url,
             data=payload,

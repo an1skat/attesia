@@ -14,7 +14,7 @@ class UserMeSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value: str) -> str:
         if value:
-            User.objects.normalize_email(value)
+            value = User.objects.normalize_email(value)
         return value
 
 
