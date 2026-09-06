@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import exceptions
@@ -20,6 +21,23 @@ def hash_token(raw_token: str) -> str:
 
 
 class UserService:
+    @classmethod
+    @transaction.atomic
+    def update_user_profile(cls, *, user: User, data: dict) -> User:
+        if data.get("email"):
+            data["email"] = User.objects.normalize_email(data["email"])
+
+        for attr, value in data.items():
+            setattr(user, attr, value)
+
+        try:
+            user.full_clean()
+        except DjangoValidationError as err:
+            raise exceptions.ValidationError(err.message_dict)
+
+        user.save()
+        return user
+
     @staticmethod
     @transaction.atomic
     def register_user(validate_data: dict) -> User:
