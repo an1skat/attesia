@@ -1,11 +1,19 @@
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import RetrieveAPIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from app.modules.organizations.models import Organization
 from app.modules.organizations.selectors import get_user_organizations
 
 from .serializers import OrganizationSerializer
+
+
+class OrganizationDetailView(RetrieveAPIView):
+    permission_classes = (AllowAny,)
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
 
 
 class MyOrganizationsView(APIView):

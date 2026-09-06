@@ -192,3 +192,56 @@ def test_list_my_organizations_requires_authentication(my_organizations_url, tok
     response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.parametrize(
+    "viewer", ["anonymous", "outsider", "owner", "admin", "member"]
+)
+def test_get_organization_returns_public_fields(owner, viewer):
+    create_organization(owner=owner, name="Another organization")
+    organization = create_organization(owner=owner, name="Attesia")
+    client = APIClient()
+    if viewer != "anonymous":
+        user = owner
+        if viewer != "owner":
+            user = User.objects.create_user(
+                email="viewer@example.com", display_name="Viewer"
+            )
+        if viewer in ("admin", "member"):
+            OrganizationMembership.objects.create(
+                user=user, organization=organization, role=viewer
+            )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(user)}")
+    url = reverse("organizations:organization_detail", kwargs={"pk": organization.pk})
+    assert url == f"/api/v1/organizations/{organization.pk}/"
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert set(response.data) == {"id", "name", "created_at", "updated_at"}
+    assert response.data["id"] == organization.pk
+    assert response.data["name"] == "Attesia"
+    assert response.data["created_at"]
+    assert response.data["updated_at"]
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_get_missing_organization_returns_404(client, owner, authenticated):
+    organization = create_organization(owner=owner, name="Attesia")
+    missing_id = organization.pk
+    organization.delete()
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(
+        reverse("organizations:organization_detail", kwargs={"pk": missing_id})
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("organization_id", ["invalid", "-1", "9223372036854775808"])
+def test_get_organization_with_invalid_id_returns_404(organization_id):
+    response = APIClient().get(f"/api/v1/organizations/{organization_id}/")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
