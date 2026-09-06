@@ -8,7 +8,7 @@ from app.modules.organizations.selectors import get_user_organizations
 from .serializers import OrganizationSerializer
 
 
-class OrganizationView(APIView):
+class MyOrganizationsView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
@@ -16,6 +16,10 @@ class OrganizationView(APIView):
         serializer = OrganizationSerializer(organizations, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class OrganizationCreateView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request):
         serializer = OrganizationSerializer(

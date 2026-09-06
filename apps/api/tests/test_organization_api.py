@@ -37,6 +37,13 @@ def url():
     return reverse("organizations:organizations")
 
 
+@pytest.fixture
+def my_organizations_url():
+    url = reverse("organizations:my_organizations")
+    assert url == "/api/v1/me/organizations/"
+    return url
+
+
 def test_create_organization(client, owner, url):
     response = client.post(url, {"name": " \tAttesia\n"}, format="json")
 
@@ -144,7 +151,9 @@ def test_membership_failure_rolls_back_organization(client, url):
     assert not OrganizationMembership.objects.exists()
 
 
-def test_list_organizations_returns_only_current_user_memberships(client, owner, url):
+def test_list_my_organizations_returns_only_current_user_memberships(
+    client, owner, my_organizations_url
+):
     other = User.objects.create_user(email="other@example.com", display_name="Other")
     first = create_organization(owner=owner, name="A")
     second = create_organization(owner=other, name="B")
@@ -153,18 +162,20 @@ def test_list_organizations_returns_only_current_user_memberships(client, owner,
         user=owner, organization=second, role=OrganizationMembership.Role.MEMBER
     )
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_200_OK
     assert [item["id"] for item in response.data] == [first.pk, second.pk]
     assert [item["name"] for item in response.data] == ["A", "B"]
 
 
-def test_list_organizations_is_empty_without_membership(client, url):
+def test_list_my_organizations_is_empty_without_membership(
+    client, my_organizations_url
+):
     other = User.objects.create_user(email="other@example.com", display_name="Other")
     create_organization(owner=other, name="C")
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data == []
@@ -173,11 +184,11 @@ def test_list_organizations_is_empty_without_membership(client, url):
 @pytest.mark.parametrize(
     "token", [None, "invalid-token"], ids=["no_credentials", "invalid_credentials"]
 )
-def test_list_organizations_requires_authentication(url, token):
+def test_list_my_organizations_requires_authentication(my_organizations_url, token):
     client = APIClient()
     if token is not None:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
