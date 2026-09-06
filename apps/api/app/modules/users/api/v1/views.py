@@ -46,10 +46,15 @@ class UserProfileView(APIView):
             data=request.data,
             partial=True,
         )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        update_user = UserService.update_user_profile(
+            user=request.user,
+            data=serializer.validated_data,
+        )
+        return Response(
+            UserMeSerializer(update_user).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class RegisterView(APIView):

@@ -12,6 +12,11 @@ class UserMeSerializer(serializers.ModelSerializer):
         fields = ("id", "email", "display_name", "created_at")
         read_only_fields = ("id", "created_at")
 
+    def validate_email(self, value: str) -> str:
+        if value:
+            User.objects.normalize_email(value)
+        return value
+
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     class Meta:

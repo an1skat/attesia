@@ -20,6 +20,19 @@ def hash_token(raw_token: str) -> str:
 
 
 class UserService:
+    @classmethod
+    @transaction.atomic
+    def update_user_profile(cls, *, user: User, data: dict) -> User:
+        if data.get("email"):
+            data["email"] = User.objects.normalize_email(data["email"])
+
+        for attr, value in data.items():
+            setattr(user, attr, value)
+
+        user.full_clean()
+        user.save()
+        return user
+
     @staticmethod
     @transaction.atomic
     def register_user(validate_data: dict) -> User:

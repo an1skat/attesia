@@ -33,6 +33,22 @@ class UserProfilePatchTestCase(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.display_name, payload["display_name"])
 
+    def test_patch_email_normalization(self):
+        payload = {"email": "testuser@EXAMPLE.COM"}
+
+        response = self.client.patch(
+            self.profile_url,
+            data=payload,
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token}",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], "testuser@example.com")
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "testuser@example.com")
+
     def test_patch_read_only_fields_ignored(self):
         payload = {
             "display_name": "New Name",
