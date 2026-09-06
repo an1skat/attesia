@@ -57,6 +57,14 @@ class AuthAPITestCase(APITestCase):
         self.assertNotIn("password", response.data)
         self.assertTrue(User.objects.filter(email=data["email"]).exists())
 
+    def test_registration_missing_fields(self):
+        incomplete_data = {"email": "test_second@example.com"}
+        response = self.client.post(self.register_url, incomplete_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("display_name", response.data)
+        self.assertIn("password", response.data)
+
     def test_register_weak_password(self):
         data = {
             "email": "newuser2@example.com",
