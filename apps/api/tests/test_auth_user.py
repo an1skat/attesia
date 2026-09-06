@@ -27,7 +27,7 @@ class AuthAPITestCase(APITestCase):
             display_name=self.display_name,
         )
 
-        # self.register_url = reverse("users:register")
+        self.register_url = reverse("users:user_register")
         self.login_url = reverse("users:token_obtain")
         self.refresh_url = reverse("users:token_refresh")
 
@@ -42,42 +42,42 @@ class AuthAPITestCase(APITestCase):
         obj = UserRefreshToken.objects.create(user=user, token_hash=hashed, **kwargs)
         return raw_token, obj
 
-    # def test_register_success(self):
-    #     data = {
-    #         "email": "newuser@example.com",
-    #         "display_name": "New User",
-    #         "password": "VeryStrongPassword1234!"
-    #     }
-    #     response = self.client.post(self.register_url, data, format="json")
-    #
-    #     self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-    #     self.assertIn("id", response.data)
-    #     self.assertEqual(response.data["email"], data["email"])
-    #     self.assertEqual(response.data["display_name"], data["display_name"])
-    #     self.assertNotIn("password", response.data)
-    #     self.assertTrue(User.objects.filter(email=data["email"]).exists())
+    def test_register_success(self):
+        data = {
+            "email": "newuser@example.com",
+            "display_name": "New User",
+            "password": "VeryStrongPassword1234!",
+        }
+        response = self.client.post(self.register_url, data, format="json")
 
-    # def test_register_weak_password(self):
-    #     data = {
-    #         "email": "newuser2@example.com",
-    #         "display_name": "New User",
-    #         "password": "123"
-    #     }
-    #     response = self.client.post(self.register_url, data, format="json")
-    #
-    #     self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    #     self.assertIn("password", response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("id", response.data)
+        self.assertEqual(response.data["email"], data["email"])
+        self.assertEqual(response.data["display_name"], data["display_name"])
+        self.assertNotIn("password", response.data)
+        self.assertTrue(User.objects.filter(email=data["email"]).exists())
 
-    # def test_register_duplicate_email(self):
-    #     data = {
-    #         "email": self.email,
-    #         "display_name": "Another User",
-    #         "password": "VeryStrongPassword1234!"
-    #     }
-    #     response = self.client.post(self.register_url, data, format="json")
-    #
-    #     self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    #     self.assertIn("email", response.data)
+    def test_register_weak_password(self):
+        data = {
+            "email": "newuser2@example.com",
+            "display_name": "New User",
+            "password": "123",
+        }
+        response = self.client.post(self.register_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.data)
+
+    def test_register_duplicate_email(self):
+        data = {
+            "email": self.email,
+            "display_name": "Another User",
+            "password": "VeryStrongPassword1234!",
+        }
+        response = self.client.post(self.register_url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
 
     def test_login_success(self):
         data = {"email": self.email, "password": self.password}
