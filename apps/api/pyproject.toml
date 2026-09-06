@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "django>=6.1",
     "djangorestframework>=3.18.0",
+    "djangorestframework-simplejwt>=5.5.1",
     "psycopg[binary]>=3.3.4",
     "pyjwt>=2.13.0",
     "python-dotenv>=1.2.3",
@@ -21,6 +22,8 @@ dev = [
 "**/migrations/*.py" = ["I001", "RUF012"]
 "**/core/api/v1/views.py" = ["B015", "BLE001"]
 "**/modules/users/api/v1/serializers.py" = ["RUF012"]
+"**/modules/users/api/v1/views.py" = ["RUF012"]
+"**/tests/test_auth_user.py" = ["BLE001", "RUF059"]
 
 [tool.ruff.format]
 exclude = ["**/migrations/*.py"]
