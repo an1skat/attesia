@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from app.modules.organizations.models import Organization, OrganizationMembership
+from app.modules.organizations.services import create_organization
 
 User = get_user_model()
 
@@ -33,7 +34,7 @@ def client(owner):
 
 @pytest.fixture
 def url():
-    return reverse("organizations:organization_create")
+    return reverse("organizations:organizations")
 
 
 def test_create_organization(client, owner, url):
@@ -141,3 +142,42 @@ def test_membership_failure_rolls_back_organization(client, url):
 
     assert not Organization.objects.exists()
     assert not OrganizationMembership.objects.exists()
+
+
+def test_list_organizations_returns_only_current_user_memberships(client, owner, url):
+    other = User.objects.create_user(email="other@example.com", display_name="Other")
+    first = create_organization(owner=owner, name="A")
+    second = create_organization(owner=other, name="B")
+    create_organization(owner=other, name="C")
+    OrganizationMembership.objects.create(
+        user=owner, organization=second, role=OrganizationMembership.Role.MEMBER
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert [item["id"] for item in response.data] == [first.pk, second.pk]
+    assert [item["name"] for item in response.data] == ["A", "B"]
+
+
+def test_list_organizations_is_empty_without_membership(client, url):
+    other = User.objects.create_user(email="other@example.com", display_name="Other")
+    create_organization(owner=other, name="C")
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == []
+
+
+@pytest.mark.parametrize(
+    "token", [None, "invalid-token"], ids=["no_credentials", "invalid_credentials"]
+)
+def test_list_organizations_requires_authentication(url, token):
+    client = APIClient()
+    if token is not None:
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED

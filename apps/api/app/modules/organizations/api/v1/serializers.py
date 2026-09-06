@@ -4,7 +4,7 @@ from app.modules.organizations.models import Organization
 from app.modules.organizations.services import create_organization
 
 
-class OrganizationCreateSerializer(serializers.ModelSerializer):
+class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = ("id", "name", "created_at", "updated_at")
