@@ -6,6 +6,18 @@ from rest_framework import serializers
 User = get_user_model()
 
 
+class UserMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "email", "display_name", "created_at")
+        read_only_fields = ("id", "created_at")
+
+    def validate_email(self, value: str) -> str:
+        if value:
+            value = User.objects.normalize_email(value)
+        return value
+
+
 class UserRegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

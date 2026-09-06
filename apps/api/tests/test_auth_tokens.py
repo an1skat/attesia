@@ -1,92 +1,67 @@
-# from time import time
-# from uuid import UUID, uuid4
-#
-# import jwt
-# import pytest
-# from django.conf import settings
-# from django.test import override_settings
-#
-# from app.core.auth.tokens import (
-#     InvalidAccessToken,
-#     create_access_token,
-#     decode_access_token,
-#     generate_refresh_token,
-#     hash_refresh_token,
-# )
-#
-#
-# def test_access_token_round_trip():
-#     before = int(time())
-#     token = create_access_token(123)
-#     payload = decode_access_token(token)
-#     after = int(time())
-#
-#     assert payload["sub"] == "123"
-#     assert before <= payload["iat"] <= after
-#     assert payload["exp"] - payload["iat"] == 10 * 60
-#     assert UUID(payload["jti"]).version == 4
-#
-#
-# def test_access_token_rejects_invalid_signature():
-#     with override_settings(ACCESS_TOKEN_SECRET="a" * 64):
-#         token = create_access_token(123)
-#
-#     with (
-#         override_settings(ACCESS_TOKEN_SECRET="b" * 64),
-#         pytest.raises(InvalidAccessToken),
-#     ):
-#         decode_access_token(token)
-#
-#
-# def test_access_token_rejects_expired_token():
-#     expired_at = int(time()) - 1
-#     token = jwt.encode(
-#         {
-#             "sub": "123",
-#             "iat": expired_at - 10 * 60,
-#             "exp": expired_at,
-#             "jti": uuid4().hex,
-#         },
-#         settings.ACCESS_TOKEN_SECRET,
-#         algorithm=settings.ACCESS_TOKEN_ALGORITHM,
-#     )
-#
-#     with pytest.raises(InvalidAccessToken):
-#         decode_access_token(token)
-#
-#
-# def test_access_token_rejects_missing_required_claim():
-#     issued_at = int(time())
-#     token = jwt.encode(
-#         {
-#             "sub": "123",
-#             "iat": issued_at,
-#             "exp": issued_at + 10 * 60,
-#         },
-#         settings.ACCESS_TOKEN_SECRET,
-#         algorithm=settings.ACCESS_TOKEN_ALGORITHM,
-#     )
-#
-#     with pytest.raises(InvalidAccessToken):
-#         decode_access_token(token)
-#
-#
-# def test_refresh_tokens_are_random_and_long_enough():
-#     first = generate_refresh_token()
-#     second = generate_refresh_token()
-#
-#     assert first != second
-#     assert len(first) >= 43
-#     assert len(second) >= 43
-#
-#
-# def test_refresh_token_hash_is_stable_and_does_not_expose_token():
-#     token = generate_refresh_token()
-#     other_token = generate_refresh_token()
-#
-#     token_hash = hash_refresh_token(token)
-#
-#     assert token_hash == hash_refresh_token(token)
-#     assert token_hash != hash_refresh_token(other_token)
-#     assert token_hash != token
-#     assert len(token_hash) == 64
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import AccessToken
+
+User = get_user_model()
+
+
+class JWTAuthenticationTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="auth_test@example.com",
+            password="StrongPassword123!",
+            display_name="Auth Test",
+        )
+        self.protected_url = reverse("users:user_profile")
+
+    def test_successful_authentication(self):
+        token = str(AccessToken.for_user(self.user))
+        response = self.client.get(
+            self.protected_url,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], self.user.email)
+
+    def test_missing_authorization_header(self):
+        response = self.client.get(self.protected_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invalid_header_format(self):
+        token = str(AccessToken.for_user(self.user))
+        response = self.client.get(
+            self.protected_url,
+            HTTP_AUTHORIZATION=f"Token {token}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invalid_jwt_token(self):
+        response = self.client.get(
+            self.protected_url,
+            HTTP_AUTHORIZATION="Bearer invalid.jwt.string",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_non_existent_user_in_sub(self):
+        token = AccessToken.for_user(self.user)
+        token["user_id"] = 999999
+        token["sub"] = 999999
+
+        response = self.client.get(
+            self.protected_url,
+            HTTP_AUTHORIZATION=f"Bearer {token!s}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_inactive_user(self):
+        self.user.is_active = False
+        self.user.save()
+
+        token = str(AccessToken.for_user(self.user))
+        response = self.client.get(
+            self.protected_url,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

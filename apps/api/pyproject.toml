@@ -24,6 +24,8 @@ dev = [
 "**/modules/users/api/v1/serializers.py" = ["RUF012"]
 "**/modules/users/api/v1/views.py" = ["RUF012"]
 "**/tests/test_auth_user.py" = ["BLE001", "RUF059"]
+"**/modules/users/services.py" = ["PLW0211"]
+
 
 [tool.ruff.format]
 exclude = ["**/migrations/*.py"]
