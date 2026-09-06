@@ -37,6 +37,13 @@ def url():
     return reverse("organizations:organizations")
 
 
+@pytest.fixture
+def my_organizations_url():
+    url = reverse("organizations:my_organizations")
+    assert url == "/api/v1/me/organizations/"
+    return url
+
+
 def test_create_organization(client, owner, url):
     response = client.post(url, {"name": " \tAttesia\n"}, format="json")
 
@@ -144,7 +151,9 @@ def test_membership_failure_rolls_back_organization(client, url):
     assert not OrganizationMembership.objects.exists()
 
 
-def test_list_organizations_returns_only_current_user_memberships(client, owner, url):
+def test_list_my_organizations_returns_only_current_user_memberships(
+    client, owner, my_organizations_url
+):
     other = User.objects.create_user(email="other@example.com", display_name="Other")
     first = create_organization(owner=owner, name="A")
     second = create_organization(owner=other, name="B")
@@ -153,18 +162,20 @@ def test_list_organizations_returns_only_current_user_memberships(client, owner,
         user=owner, organization=second, role=OrganizationMembership.Role.MEMBER
     )
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_200_OK
     assert [item["id"] for item in response.data] == [first.pk, second.pk]
     assert [item["name"] for item in response.data] == ["A", "B"]
 
 
-def test_list_organizations_is_empty_without_membership(client, url):
+def test_list_my_organizations_is_empty_without_membership(
+    client, my_organizations_url
+):
     other = User.objects.create_user(email="other@example.com", display_name="Other")
     create_organization(owner=other, name="C")
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data == []
@@ -173,11 +184,149 @@ def test_list_organizations_is_empty_without_membership(client, url):
 @pytest.mark.parametrize(
     "token", [None, "invalid-token"], ids=["no_credentials", "invalid_credentials"]
 )
-def test_list_organizations_requires_authentication(url, token):
+def test_list_my_organizations_requires_authentication(my_organizations_url, token):
     client = APIClient()
     if token is not None:
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
-    response = client.get(url)
+    response = client.get(my_organizations_url)
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.parametrize(
+    "viewer", ["anonymous", "outsider", "owner", "admin", "member"]
+)
+def test_get_organization_returns_public_fields(owner, viewer):
+    create_organization(owner=owner, name="Another organization")
+    organization = create_organization(owner=owner, name="Attesia")
+    client = APIClient()
+    if viewer != "anonymous":
+        user = owner
+        if viewer != "owner":
+            user = User.objects.create_user(
+                email="viewer@example.com", display_name="Viewer"
+            )
+        if viewer in ("admin", "member"):
+            OrganizationMembership.objects.create(
+                user=user, organization=organization, role=viewer
+            )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(user)}")
+    url = reverse("organizations:organization_detail", kwargs={"pk": organization.pk})
+    assert url == f"/api/v1/organizations/{organization.pk}/"
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert set(response.data) == {"id", "name", "created_at", "updated_at"}
+    assert response.data["id"] == organization.pk
+    assert response.data["name"] == "Attesia"
+    assert response.data["created_at"]
+    assert response.data["updated_at"]
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_get_missing_organization_returns_404(client, owner, authenticated):
+    organization = create_organization(owner=owner, name="Attesia")
+    missing_id = organization.pk
+    organization.delete()
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(
+        reverse("organizations:organization_detail", kwargs={"pk": missing_id})
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("organization_id", ["invalid", "-1", "9223372036854775808"])
+def test_get_organization_with_invalid_id_returns_404(organization_id):
+    response = APIClient().get(f"/api/v1/organizations/{organization_id}/")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_organizations_is_public(client, owner, url, authenticated):
+    other = User.objects.create_user(email="other@example.com", display_name="Other")
+    first = create_organization(owner=owner, name="Z")
+    second = create_organization(owner=other, name="A")
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == 2
+    assert response.data["next"] is None
+    assert response.data["previous"] is None
+    assert [item["id"] for item in response.data["results"]] == [first.pk, second.pk]
+    for item in response.data["results"]:
+        assert set(item) == {"id", "name", "created_at", "updated_at"}
+
+
+@pytest.mark.parametrize(
+    "search, expected_names",
+    [
+        ("tEs", ["Attesia Events", "Attesia Music"]),
+        ("  attesia  ", ["Attesia Events", "Attesia Music"]),
+        ("attesia music", ["Attesia Music"]),
+        ("КИЇВ", ["Музичний Київ"]),
+        ("missing", []),
+        ("owner@example.com", []),
+        ("", ["Attesia Events", "Attesia Music", "Музичний Київ"]),
+        ("   ", ["Attesia Events", "Attesia Music", "Музичний Київ"]),
+    ],
+)
+def test_search_organizations_by_name(owner, url, search, expected_names):
+    for name in ["Attesia Events", "Attesia Music", "Музичний Київ"]:
+        create_organization(owner=owner, name=name)
+
+    response = APIClient().get(url, {"search": search})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["count"] == len(expected_names)
+    assert [item["name"] for item in response.data["results"]] == expected_names
+
+
+def test_list_organizations_paginates_search_in_stable_order(owner, url):
+    create_organization(owner=owner, name="Unrelated")
+    organizations = [
+        create_organization(owner=owner, name="Attesia") for _ in range(21)
+    ]
+    create_organization(owner=owner, name="Another unrelated organization")
+    client = APIClient()
+
+    first = client.get(url, {"search": "attesia"})
+
+    assert first.status_code == status.HTTP_200_OK
+    assert first.data["count"] == 21
+    assert first.data["previous"] is None
+    assert first.data["next"] is not None
+    assert [item["id"] for item in first.data["results"]] == [
+        organization.pk for organization in organizations[:20]
+    ]
+
+    second = client.get(first.data["next"])
+
+    assert second.status_code == status.HTTP_200_OK
+    assert second.data["count"] == 21
+    assert second.data["next"] is None
+    assert second.data["previous"] is not None
+    assert [item["id"] for item in second.data["results"]] == [organizations[20].pk]
+    assert client.get(second.data["previous"]).data == first.data
+
+
+def test_list_organizations_returns_empty_page(url):
+    response = APIClient().get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == {"count": 0, "next": None, "previous": None, "results": []}
+
+
+@pytest.mark.parametrize("page", ["0", "-1", "invalid", "2"])
+def test_list_organizations_rejects_invalid_or_missing_page(url, page):
+    response = APIClient().get(url, {"page": page})
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
