@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "apps/web/**"
-      - ".github/workflows/frontend-ci.yml"
 
 permissions:
   contents: read
