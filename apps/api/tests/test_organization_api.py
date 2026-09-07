@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
@@ -330,3 +331,252 @@ def test_list_organizations_rejects_invalid_or_missing_page(url, page):
     response = APIClient().get(url, {"page": page})
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_organization_members_is_public(
+    client, owner, authenticated, django_assert_num_queries
+):
+    organization = Organization.objects.create(name="Attesia")
+    memberships = []
+    for pk, role in zip((30, 10, 20), OrganizationMembership.Role.values):
+        user = User.objects.create_user(
+            email=f"{role}@members.example.com", display_name=role.title()
+        )
+        memberships.append(
+            OrganizationMembership.objects.create(
+                pk=pk, user=user, organization=organization, role=role
+            )
+        )
+    create_organization(owner=owner, name="Another organization")
+    if not authenticated:
+        client.credentials()
+    url = reverse("organizations:organization_members", kwargs={"pk": organization.pk})
+    assert url == f"/api/v1/organizations/{organization.pk}/members/"
+
+    with django_assert_num_queries(3 if authenticated else 2):
+        response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    assert [item["id"] for item in data] == [10, 20, 30]
+    for item, membership in zip(data, sorted(memberships, key=lambda item: item.pk)):
+        assert set(item) == {"id", "user", "role", "created_at"}
+        assert item["user"] == {
+            "id": membership.user_id,
+            "display_name": membership.user.display_name,
+        }
+        assert item["role"] == membership.role
+        assert parse_datetime(item["created_at"]) == membership.created_at
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_missing_organization_members_returns_404(client, owner, authenticated):
+    organization = create_organization(owner=owner, name="Attesia")
+    missing_id = organization.pk
+    organization.delete()
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(
+        reverse("organizations:organization_members", kwargs={"pk": missing_id})
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_list_organization_members_returns_empty_list():
+    organization = Organization.objects.create(name="Empty")
+
+    response = APIClient().get(
+        reverse("organizations:organization_members", kwargs={"pk": organization.pk})
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
+
+
+@pytest.fixture
+def organization(owner):
+    return create_organization(owner=owner, name="Attesia")
+
+
+@pytest.fixture
+def target_user():
+    return User.objects.create_user(email="target@example.com", display_name="Target")
+
+
+@pytest.fixture
+def members_url(organization):
+    return reverse("organizations:organization_members", kwargs={"pk": organization.pk})
+
+
+@pytest.mark.parametrize("actor_role", ["owner", "admin"])
+@pytest.mark.parametrize("role", ["member", "admin"])
+def test_post_organization_member(
+    client, organization, target_user, members_url, actor_role, role
+):
+    if actor_role == "admin":
+        admin = User.objects.create_user(
+            email="admin@example.com", display_name="Admin"
+        )
+        OrganizationMembership.objects.create(
+            organization=organization, user=admin, role="admin"
+        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(admin)}")
+    before_count = organization.memberships.count()
+
+    response = client.post(
+        members_url, {"user_id": target_user.pk, "role": role}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    membership = organization.memberships.get(user=target_user)
+    assert membership.role == role
+    assert organization.memberships.count() == before_count + 1
+    data = response.json()
+    assert set(data) == {"id", "user", "role", "created_at"}
+    assert data["id"] == membership.pk
+    assert data["user"] == {
+        "id": target_user.pk,
+        "display_name": target_user.display_name,
+    }
+    assert data["role"] == role
+    assert parse_datetime(data["created_at"]) == membership.created_at
+    listing = APIClient().get(members_url)
+    assert listing.status_code == status.HTTP_200_OK
+    assert data in listing.json()
+
+
+@pytest.mark.parametrize("actor_role", ["member", "outsider"])
+def test_post_organization_member_forbidden(
+    client, owner, organization, target_user, members_url, actor_role
+):
+    actor = User.objects.create_user(email="actor@example.com", display_name="Actor")
+    if actor_role == "member":
+        OrganizationMembership.objects.create(
+            organization=organization, user=actor, role=actor_role
+        )
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(actor)}")
+    before = list(organization.memberships.order_by("pk").values())
+
+    response = client.post(
+        members_url,
+        {"user_id": target_user.pk, "role": "member", "actor": owner.pk},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert list(organization.memberships.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize("token", [None, "invalid-token"])
+def test_post_organization_member_requires_authentication(
+    organization, target_user, members_url, token
+):
+    client = APIClient()
+    if token is not None:
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    response = client.post(
+        members_url, {"user_id": target_user.pk, "role": "member"}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert organization.memberships.count() == 1
+    assert not organization.memberships.filter(user=target_user).exists()
+
+
+def test_post_duplicate_organization_member(
+    client, organization, target_user, members_url
+):
+    first = client.post(
+        members_url, {"user_id": target_user.pk, "role": "member"}, format="json"
+    )
+    assert first.status_code == status.HTTP_201_CREATED
+
+    response = client.post(
+        members_url, {"user_id": target_user.pk, "role": "admin"}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.data[0].code == "membership_exists"
+    membership = organization.memberships.get(user=target_user)
+    assert membership.pk == first.data["id"]
+    assert membership.role == "member"
+    assert organization.memberships.count() == 2
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"user_id": 1},
+        {"role": "member"},
+        {"user_id": 1, "role": "owner"},
+        {"user_id": 1, "role": "invalid"},
+        {"user_id": 1, "role": ""},
+        {"user_id": 1, "role": None},
+        {"user_id": None, "role": "member"},
+        {"user_id": "invalid", "role": "member"},
+        {"user_id": 1.5, "role": "member"},
+        {"user_id": True, "role": "member"},
+        {"user_id": 0, "role": "member"},
+        {"user_id": -1, "role": "member"},
+        [],
+    ],
+)
+def test_post_organization_member_rejects_invalid_input(
+    client, organization, members_url, payload
+):
+    before = list(organization.memberships.values())
+
+    response = client.post(members_url, payload, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert list(organization.memberships.values()) == before
+
+
+@pytest.mark.parametrize("missing", ["organization", "user"])
+def test_post_organization_member_not_found(
+    client, organization, target_user, members_url, missing
+):
+    user_id = target_user.pk
+    if missing == "organization":
+        organization.delete()
+    else:
+        target_user.delete()
+    before = list(OrganizationMembership.objects.values())
+
+    response = client.post(
+        members_url, {"user_id": user_id, "role": "member"}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data["detail"].code == f"{missing}_not_found"
+    assert list(OrganizationMembership.objects.values()) == before
+
+
+def test_post_organization_member_uses_url_and_authenticated_actor(
+    client, owner, organization, target_user, members_url
+):
+    other = create_organization(owner=owner, name="Other")
+
+    response = client.post(
+        members_url,
+        {
+            "user_id": target_user.pk,
+            "role": "member",
+            "organization_id": other.pk,
+            "actor": target_user.pk,
+            "user": owner.pk,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert organization.memberships.get(user=target_user).pk == response.data["id"]
+    assert organization.memberships.count() == 2
+    assert other.memberships.count() == 1
+    assert other.memberships.get().user == owner

@@ -4,6 +4,7 @@ from .views import (
     MyOrganizationsView,
     OrganizationDetailView,
     OrganizationListCreateView,
+    OrganizationMembersView,
 )
 
 app_name = "organizations"
@@ -16,4 +17,9 @@ urlpatterns = [
         name="organization_detail",
     ),
     path("me/organizations/", MyOrganizationsView.as_view(), name="my_organizations"),
+    path(
+        "organizations/<int:pk>/members/",
+        OrganizationMembersView.as_view(),
+        name="organization_members",
+    ),
 ]
