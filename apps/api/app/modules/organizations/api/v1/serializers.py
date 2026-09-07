@@ -28,3 +28,10 @@ class OrganizationMembershipSerializer(serializers.ModelSerializer):
         model = OrganizationMembership
         fields = ("id", "user", "role", "created_at")
         read_only_fields = fields
+
+
+class OrganizationMembershipCreateSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1)
+    role = serializers.ChoiceField(
+        choices=(OrganizationMembership.Role.ADMIN, OrganizationMembership.Role.MEMBER)
+    )

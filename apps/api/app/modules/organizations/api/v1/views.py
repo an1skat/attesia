@@ -1,5 +1,6 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -16,8 +17,13 @@ from app.modules.organizations.selectors import (
     get_organization_memberships,
     get_user_organizations,
 )
+from app.modules.organizations.services import add_organization_member
 
-from .serializers import OrganizationMembershipSerializer, OrganizationSerializer
+from .serializers import (
+    OrganizationMembershipCreateSerializer,
+    OrganizationMembershipSerializer,
+    OrganizationSerializer,
+)
 
 
 class OrganizationDetailView(RetrieveAPIView):
@@ -37,7 +43,7 @@ class MyOrganizationsView(APIView):
 
 
 class OrganizationMembersView(APIView):
-    permission_classes = (AllowAny,)
+    permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get(self, request, pk):
         try:
@@ -46,6 +52,22 @@ class OrganizationMembersView(APIView):
             raise NotFound() from exc
         serializer = OrganizationMembershipSerializer(memberships, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, pk):
+        serializer = OrganizationMembershipCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            membership = add_organization_member(
+                actor=request.user, organization_id=pk, **serializer.validated_data
+            )
+        except DjangoValidationError as exc:
+            if exc.code in ("organization_not_found", "user_not_found"):
+                raise NotFound(exc.message, code=exc.code) from exc
+            raise ValidationError(exc.messages, code=exc.code) from exc
+        return Response(
+            OrganizationMembershipSerializer(membership).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class OrganizationPagination(PageNumberPagination):
