@@ -4,10 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "apps/api/**"
-      - "docker-compose.yml"
-      - ".github/workflows/backend-ci.yml"
 
 permissions:
   contents: read

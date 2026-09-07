@@ -9,6 +9,8 @@ __pycache__/
 .venv/
 node_modules/
 .next/
+*.tsbuildinfo
+next-env.d.ts
 dist/
 coverage/
 .coverage
