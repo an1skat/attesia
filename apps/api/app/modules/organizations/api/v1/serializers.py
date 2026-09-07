@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationMembership
 from app.modules.organizations.services import create_organization
 
 
@@ -14,3 +14,17 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return create_organization(
             owner=self.context["request"].user, name=validated_data["name"]
         )
+
+
+class PublicUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    display_name = serializers.CharField(read_only=True)
+
+
+class OrganizationMembershipSerializer(serializers.ModelSerializer):
+    user = PublicUserSerializer(read_only=True)
+
+    class Meta:
+        model = OrganizationMembership
+        fields = ("id", "user", "role", "created_at")
+        read_only_fields = fields

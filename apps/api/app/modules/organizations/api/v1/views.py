@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.filters import SearchFilter
 from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -11,9 +12,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.modules.organizations.models import Organization
-from app.modules.organizations.selectors import get_user_organizations
+from app.modules.organizations.selectors import (
+    get_organization_memberships,
+    get_user_organizations,
+)
 
-from .serializers import OrganizationSerializer
+from .serializers import OrganizationMembershipSerializer, OrganizationSerializer
 
 
 class OrganizationDetailView(RetrieveAPIView):
@@ -29,6 +33,18 @@ class MyOrganizationsView(APIView):
         organizations = get_user_organizations(user=request.user)
         serializer = OrganizationSerializer(organizations, many=True)
 
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class OrganizationMembersView(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, pk):
+        try:
+            memberships = get_organization_memberships(organization_id=pk)
+        except Organization.DoesNotExist as exc:
+            raise NotFound() from exc
+        serializer = OrganizationMembershipSerializer(memberships, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
@@ -330,3 +331,79 @@ def test_list_organizations_rejects_invalid_or_missing_page(url, page):
     response = APIClient().get(url, {"page": page})
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_organization_members_is_public(
+    client, owner, authenticated, django_assert_num_queries
+):
+    organization = Organization.objects.create(name="Attesia")
+    memberships = []
+    for pk, role in zip((30, 10, 20), OrganizationMembership.Role.values):
+        user = User.objects.create_user(
+            email=f"{role}@members.example.com", display_name=role.title()
+        )
+        memberships.append(
+            OrganizationMembership.objects.create(
+                pk=pk, user=user, organization=organization, role=role
+            )
+        )
+    create_organization(owner=owner, name="Another organization")
+    if not authenticated:
+        client.credentials()
+    url = reverse("organizations:organization_members", kwargs={"pk": organization.pk})
+    assert url == f"/api/v1/organizations/{organization.pk}/members/"
+
+    with django_assert_num_queries(3 if authenticated else 2):
+        response = client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    assert [item["id"] for item in data] == [10, 20, 30]
+    for item, membership in zip(data, sorted(memberships, key=lambda item: item.pk)):
+        assert set(item) == {"id", "user", "role", "created_at"}
+        assert item["user"] == {
+            "id": membership.user_id,
+            "display_name": membership.user.display_name,
+        }
+        assert item["role"] == membership.role
+        assert parse_datetime(item["created_at"]) == membership.created_at
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_list_missing_organization_members_returns_404(client, owner, authenticated):
+    organization = create_organization(owner=owner, name="Attesia")
+    missing_id = organization.pk
+    organization.delete()
+    if not authenticated:
+        client.credentials()
+
+    response = client.get(
+        reverse("organizations:organization_members", kwargs={"pk": missing_id})
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_list_organization_members_returns_empty_list():
+    organization = Organization.objects.create(name="Empty")
+
+    response = APIClient().get(
+        reverse("organizations:organization_members", kwargs={"pk": organization.pk})
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
+
+
+def test_organization_members_does_not_allow_post(client, owner):
+    organization = create_organization(owner=owner, name="Attesia")
+
+    response = client.post(
+        reverse("organizations:organization_members", kwargs={"pk": organization.pk}),
+        {"user": owner.pk, "role": "admin"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
