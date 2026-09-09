@@ -17,7 +17,7 @@ class LogoutTestCase(APITestCase):
             display_name="Logout User",
         )
         self.logout_url = reverse("users:auth_logout")
-        self.cookie_name = getattr(settings, "JWT_AUTH_COOKIE", "refresh_token")
+        self.cookie_name = getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token")
 
         self.raw_refresh, self.session = UserService.create_refresh_token_for_user(
             self.user

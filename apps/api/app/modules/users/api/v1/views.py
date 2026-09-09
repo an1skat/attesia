@@ -23,10 +23,10 @@ User = get_user_model()
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
     days = getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 30)
     response.set_cookie(
-        key=getattr(settings, "JWT_AUTH_COOKIE", "refresh_token"),
+        key=getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token"),
         value=refresh_token,
         httponly=getattr(settings, "JWT_AUTH_COOKIE_HTTPONLY", True),
-        secure=getattr(settings, "JWT_AUTH_COOKie_SECURE", False),
+        secure=getattr(settings, "JWT_AUTH_COOKIE_SECURE", False),
         samesite=getattr(settings, "JWT_AUTH_COOKIE_SAMESITE", "Lax"),
         max_age=3600 * 24 * days,
         path=getattr(settings, "JWT_AUTH_COOKIE_PATH", "/"),
@@ -93,9 +93,10 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def post(self, request):
-        cookie_name = getattr(settings, "JWT_AUTH_COOKIE", "refresh_token")
+        cookie_name = getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token")
         raw_refresh_token = request.COOKIES.get(cookie_name)
 
         UserService.logout_user(raw_refresh_token=raw_refresh_token)

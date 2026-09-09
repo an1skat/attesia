@@ -26,7 +26,7 @@ dev = [
 "**/tests/test_auth_user.py" = ["BLE001", "RUF059"]
 "**/tests/test_logout_user.py" = ["RUF059"]
 "**/modules/users/services.py" = ["PLW0211"]
-"**/modules/users/api/v1/urls.py" = ["F811"]
+#"**/modules/users/api/v1/urls.py" = ["F811"]
 
 [tool.ruff.format]
 exclude = ["**/migrations/*.py"]
