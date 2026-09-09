@@ -27,16 +27,6 @@ load_dotenv(BASE_DIR / ".env")
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("D_SECRET_KEY", "django-insecure-development-only")
 
-# ACCESS_TOKEN_SECRET = os.getenv("ACCESS_TOKEN_SECRET")
-# if not ACCESS_TOKEN_SECRET:
-#     raise ImproperlyConfigured("ACCESS_TOKEN_SECRET must be set")
-#
-# if len(ACCESS_TOKEN_SECRET.encode()) < 32:
-#     raise ImproperlyConfigured("ACCESS_TOKEN_SECRET must be at least 32 bytes")
-#
-# ACCESS_TOKEN_ALGORITHM = "HS256"
-# ACCESS_TOKEN_LIFETIME = timedelta(minutes=10)
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG_STATUS", "true").lower() == "true"
 
@@ -137,6 +127,12 @@ SIMPLE_JWT = {
 
 REFRESH_TOKEN_LIFETIME_DAYS = 30
 
+# JWT
+JWT_AUTH_REFRESH_COOKIE = "refresh_token"
+JWT_AUTH_COOKIE_PATH = "/api/v1/auth/"
+JWT_AUTH_COOKIE_SAMESITE = "Lax"
+JWT_AUTH_COOKIE_SECURE = False
+JWT_AUTH_COOKIE_HTTPONLY = True
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
