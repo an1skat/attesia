@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -63,7 +64,7 @@ class UserLoginSerializer(serializers.Serializer):
 class RefreshTokenSerializer(serializers.Serializer):
     def validate(self, attrs):
         request = self.context.get("request")
-        raw_token = request.COOKIES.get("refresh_token")
+        raw_token = request.COOKIES.get(settings.JWT_AUTH_REFRESH_COOKIE)
 
         if not raw_token:
             raise serializers.ValidationError("Refresh token cookie is missing")
