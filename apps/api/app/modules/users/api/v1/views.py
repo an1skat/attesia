@@ -26,7 +26,7 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         key=getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token"),
         value=refresh_token,
         httponly=getattr(settings, "JWT_AUTH_COOKIE_HTTPONLY", True),
-        secure=getattr(settings, "JWT_AUTH_COOKIE_SECURE", False),
+        secure=not settings.DEBUG,
         samesite=getattr(settings, "JWT_AUTH_COOKIE_SAMESITE", "Lax"),
         max_age=3600 * 24 * days,
         path=getattr(settings, "JWT_AUTH_COOKIE_PATH", "/"),
