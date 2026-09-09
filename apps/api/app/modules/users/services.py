@@ -54,13 +54,11 @@ class UserService:
             return
 
         token_hash = hash_token(raw_refresh_token)
-        try:
-            session = UserRefreshToken.objects.get(token_hash=token_hash)
-            if not session.revoked_at:
-                session.revoked_at = timezone.now()
-                session.save(update_fields=["revoked_at"])
-        except UserRefreshToken.DoesNotExist:
-            pass
+
+        UserRefreshToken.objects.filter(
+            token_hash=token_hash,
+            revoked_at__isnull=True,
+        ).update(revoked_at=timezone.now())
 
     @classmethod
     def create_refresh_token_for_user(
