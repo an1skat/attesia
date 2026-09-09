@@ -23,13 +23,13 @@ User = get_user_model()
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
     days = getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 30)
     response.set_cookie(
-        key="refresh_token",
+        key=getattr(settings, "JWT_AUTH_COOKIE", "refresh_token"),
         value=refresh_token,
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="Lax",
+        httponly=getattr(settings, "JWT_AUTH_COOKIE_HTTPONLY", True),
+        secure=getattr(settings, "JWT_AUTH_COOKie_SECURE", False),
+        samesite=getattr(settings, "JWT_AUTH_COOKIE_SAMESITE", "Lax"),
         max_age=3600 * 24 * days,
-        path="/",
+        path=getattr(settings, "JWT_AUTH_COOKIE_PATH", "/"),
     )
 
 
@@ -88,6 +88,28 @@ class LoginView(APIView):
             status=status.HTTP_200_OK,
         )
         set_refresh_cookie(response, raw_refresh)
+        return response
+
+
+class LogoutView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        cookie_name = getattr(settings, "JWT_AUTH_COOKIE", "refresh_token")
+        raw_refresh_token = request.COOKIES.get(cookie_name)
+
+        UserService.logout_user(raw_refresh_token=raw_refresh_token)
+        response = Response(
+            {"message": "Successfully logged out"},
+            status=status.HTTP_200_OK,
+        )
+
+        response.delete_cookie(
+            key=cookie_name,
+            path=getattr(settings, "JWT_AUTH_COOKIE_PATH", "/"),
+            samesite=getattr(settings, "JWT_AUTH_COOKIE_SAMESITE", "Lax"),
+        )
+
         return response
 
 

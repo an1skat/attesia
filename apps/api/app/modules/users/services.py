@@ -49,6 +49,20 @@ class UserService:
         return user
 
     @classmethod
+    def logout_user(cls, *, raw_refresh_token: str | None) -> None:
+        if not raw_refresh_token:
+            return
+
+        token_hash = hash_token(raw_refresh_token)
+        try:
+            session = UserRefreshToken.objects.get(token_hash=token_hash)
+            if not session.revoked_at:
+                session.revoked_at = timezone.now()
+                session.save(update_fields=["revoked_at"])
+        except UserRefreshToken.DoesNotExist:
+            pass
+
+    @classmethod
     def create_refresh_token_for_user(
         cls, user, family_id: uuid.UUID | None = None
     ) -> tuple[str, UserRefreshToken]:
