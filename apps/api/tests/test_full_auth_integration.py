@@ -24,7 +24,7 @@ class AuthFullIntegrationTestCase(APITestCase):
         self.refresh_url = reverse("users:token_refresh")
         self.logout_url = reverse("users:auth_logout")
 
-        self.cookie_name = getattr(settings, "JWT_AUTH_COOKIE", "refresh_token")
+        self.cookie_name = getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token")
         self.cookie_path = getattr(settings, "JWT_AUTH_COOKIE_PATH", "/")
 
         self.user_data = {
