@@ -28,7 +28,7 @@ jobs:
           --health-retries 5
 
     env:
-      POSTGRES_NAME: attesia_ci
+      POSTGRES_DB: attesia_ci
       POSTGRES_USER: attesia
       POSTGRES_PASSWORD: attesia
       DB_HOST: localhost
