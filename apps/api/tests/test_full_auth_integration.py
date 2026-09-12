@@ -24,7 +24,7 @@ class AuthFullIntegrationTestCase(APITestCase):
         self.refresh_url = reverse("users:token_refresh")
         self.logout_url = reverse("users:auth_logout")
 
-        self.cookie_name = getattr(settings, "JWT_AUTH_COOKIE", "refresh_token")
+        self.cookie_name = getattr(settings, "JWT_AUTH_REFRESH_COOKIE", "refresh_token")
         self.cookie_path = getattr(settings, "JWT_AUTH_COOKIE_PATH", "/")
 
         self.user_data = {
@@ -54,6 +54,7 @@ class AuthFullIntegrationTestCase(APITestCase):
             format="json",
         )
         self.assertEqual(login_resp.status_code, status.HTTP_200_OK)
+
         first_access = login_resp.data["access"]
 
         self.assertIn(self.cookie_name, login_resp.cookies)
@@ -67,8 +68,13 @@ class AuthFullIntegrationTestCase(APITestCase):
 
         refresh_resp = self.client.post(self.refresh_url)
         self.assertEqual(refresh_resp.status_code, status.HTTP_200_OK)
+
         second_access = refresh_resp.data["access"]
         self.assertNotEqual(first_access, second_access)
+
+        self.assertIn(self.cookie_name, refresh_resp.cookies)
+        second_refresh = refresh_resp.cookies[self.cookie_name].value
+        self.assertNotEqual(first_refresh, second_refresh)
 
         me_resp_2 = self.client.get(
             self.me_url,
@@ -78,10 +84,14 @@ class AuthFullIntegrationTestCase(APITestCase):
 
         logout_resp = self.client.post(self.logout_url)
         self.assertEqual(logout_resp.status_code, status.HTTP_200_OK)
+
+        self.assertIn(self.cookie_name, logout_resp.cookies)
         self.assertEqual(logout_resp.cookies[self.cookie_name].value, "")
 
-        self._set_refresh_cookie(first_refresh)
+        self._set_refresh_cookie(second_refresh)
+
         failed_refresh = self.client.post(self.refresh_url)
+
         self.assertIn(
             failed_refresh.status_code,
             [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED],
