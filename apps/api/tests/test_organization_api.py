@@ -580,3 +580,161 @@ def test_post_organization_member_uses_url_and_authenticated_actor(
     assert organization.memberships.count() == 2
     assert other.memberships.count() == 1
     assert other.memberships.get().user == owner
+
+
+@pytest.fixture
+def target_membership(organization, target_user):
+    return OrganizationMembership.objects.create(
+        pk=target_user.pk + 1000,
+        organization=organization,
+        user=target_user,
+        role=OrganizationMembership.Role.MEMBER,
+    )
+
+
+@pytest.fixture
+def member_detail_url(organization, target_membership):
+    url = reverse(
+        "organizations:organization_member_detail",
+        kwargs={"organization_id": organization.pk, "member_id": target_membership.pk},
+    )
+    assert (
+        url
+        == f"/api/v1/organizations/{organization.pk}/members/{target_membership.pk}/"
+    )
+    assert target_membership.pk != target_membership.user_id
+    return url
+
+
+@pytest.mark.parametrize(
+    "initial_role, role", [("member", "admin"), ("admin", "member")]
+)
+def test_patch_organization_membership_role(
+    client,
+    owner,
+    organization,
+    target_membership,
+    member_detail_url,
+    initial_role,
+    role,
+):
+    target_membership.role = initial_role
+    target_membership.save(update_fields=("role",))
+
+    response = client.patch(member_detail_url, {"role": role}, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    target_membership.refresh_from_db()
+    assert target_membership.role == role
+    data = response.json()
+    assert set(data) == {"id", "user", "role", "created_at"}
+    assert data["id"] == target_membership.pk
+    assert data["user"] == {
+        "id": target_membership.user_id,
+        "display_name": target_membership.user.display_name,
+    }
+    assert data["role"] == role
+    assert parse_datetime(data["created_at"]) == target_membership.created_at
+    assert organization.memberships.count() == 2
+    assert organization.memberships.get(user=owner).role == "owner"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{"role": "owner"}, {"role": "invalid"}, {"role": ""}, {"role": None}, {}, []],
+)
+def test_patch_membership_rejects_invalid_role(client, member_detail_url, payload):
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+
+    response = client.patch(member_detail_url, payload, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize("role", ["admin", "member"])
+def test_patch_owner_membership_is_forbidden(client, owner, organization, role):
+    membership = organization.memberships.get(user=owner)
+    url = reverse(
+        "organizations:organization_member_detail",
+        kwargs={"organization_id": organization.pk, "member_id": membership.pk},
+    )
+    before = list(OrganizationMembership.objects.values())
+
+    response = client.patch(url, {"role": role}, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.data[0].code == "owner_role_immutable"
+    assert list(OrganizationMembership.objects.values()) == before
+
+
+@pytest.mark.parametrize("actor_role", ["admin", "member", "outsider"])
+def test_patch_membership_requires_owner(
+    client, owner, organization, member_detail_url, actor_role
+):
+    actor = User.objects.create_user(email="actor@example.com", display_name="Actor")
+    if actor_role != "outsider":
+        OrganizationMembership.objects.create(
+            organization=organization, user=actor, role=actor_role
+        )
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(actor)}")
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+
+    response = client.patch(
+        member_detail_url, {"role": "admin", "actor": owner.pk}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize("token", [None, "invalid-token"])
+def test_patch_membership_requires_authentication(member_detail_url, token):
+    client = APIClient()
+    if token is not None:
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+
+    response = client.patch(member_detail_url, {"role": "admin"}, format="json")
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize("actor_role", ["owner", "admin", "member", "outsider"])
+@pytest.mark.parametrize(
+    "missing", ["organization", "membership", "other_organization"]
+)
+def test_patch_membership_not_found(
+    client, owner, organization, target_membership, actor_role, missing
+):
+    if actor_role != "owner":
+        actor = User.objects.create_user(
+            email="actor@example.com", display_name="Actor"
+        )
+        if actor_role != "outsider":
+            OrganizationMembership.objects.create(
+                organization=organization, user=actor, role=actor_role
+            )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(actor)}")
+    organization_id, member_id = organization.pk, target_membership.pk
+    if missing == "organization":
+        organization.delete()
+    elif missing == "membership":
+        target_membership.delete()
+    else:
+        other = create_organization(owner=owner, name="Other")
+        member_id = other.memberships.get().pk
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+    url = reverse(
+        "organizations:organization_member_detail",
+        kwargs={"organization_id": organization_id, "member_id": member_id},
+    )
+
+    response = client.patch(url, {"role": "admin"}, format="json")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    expected = "organization" if missing == "organization" else "membership"
+    assert response.data["detail"].code == f"{expected}_not_found"
+    assert response.json() == {"detail": f"{expected.title()} does not exist."}
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before

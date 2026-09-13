@@ -11,6 +11,7 @@ from app.modules.organizations.models import Organization, OrganizationMembershi
 from app.modules.organizations.services import (
     add_organization_member,
     create_organization,
+    update_organization_membership_role,
 )
 
 User = get_user_model()
@@ -237,3 +238,62 @@ def test_concurrent_add_organization_member(membership_args):
         OrganizationMembership.objects.get(user=membership_args["actor"]).role
         == "owner"
     )
+
+
+@pytest.mark.parametrize(
+    "initial_role, role", [("member", "admin"), ("admin", "member")]
+)
+def test_update_membership_role(membership_args, initial_role, role):
+    membership_args["role"] = initial_role
+    membership = add_organization_member(**membership_args)
+
+    updated = update_organization_membership_role(
+        actor=membership_args["actor"],
+        organization_id=membership.organization_id,
+        member_id=membership.pk,
+        role=role,
+    )
+
+    membership.refresh_from_db()
+    assert updated.pk == membership.pk
+    assert membership.role == updated.role == role
+    assert OrganizationMembership.objects.count() == 2
+
+
+@pytest.mark.parametrize(
+    "actor_role, target_role, role, error_type, code",
+    [
+        ("owner", "member", "owner", ValidationError, "invalid_role"),
+        ("owner", "member", "invalid", ValidationError, "invalid_role"),
+        ("owner", "owner", "admin", ValidationError, "owner_role_immutable"),
+        ("owner", "owner", "member", ValidationError, "owner_role_immutable"),
+        ("admin", "member", "admin", PermissionDenied, None),
+        ("member", "member", "admin", PermissionDenied, None),
+        ("outsider", "member", "admin", PermissionDenied, None),
+    ],
+)
+def test_update_membership_role_enforces_business_rules(
+    membership_args, actor_role, target_role, role, error_type, code
+):
+    membership = add_organization_member(**membership_args)
+    membership.role = target_role
+    membership.save(update_fields=("role",))
+    actor_membership = OrganizationMembership.objects.get(user=membership_args["actor"])
+    if actor_role == "outsider":
+        actor_membership.delete()
+    else:
+        actor_membership.role = actor_role
+        actor_membership.save(update_fields=("role",))
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+
+    with pytest.raises(error_type) as error:
+        update_organization_membership_role(
+            actor=membership_args["actor"],
+            organization_id=membership.organization_id,
+            member_id=membership.pk,
+            role=role,
+        )
+
+    if code:
+        assert error.value.code == code
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before

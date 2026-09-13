@@ -4,6 +4,7 @@ from .views import (
     MyOrganizationsView,
     OrganizationDetailView,
     OrganizationListCreateView,
+    OrganizationMemberDetailView,
     OrganizationMembersView,
 )
 
@@ -21,5 +22,10 @@ urlpatterns = [
         "organizations/<int:pk>/members/",
         OrganizationMembersView.as_view(),
         name="organization_members",
+    ),
+    path(
+        "organizations/<int:organization_id>/members/<int:member_id>/",
+        OrganizationMemberDetailView.as_view(),
+        name="organization_member_detail",
     ),
 ]
