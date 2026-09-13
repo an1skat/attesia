@@ -35,3 +35,9 @@ class OrganizationMembershipCreateSerializer(serializers.Serializer):
     role = serializers.ChoiceField(
         choices=(OrganizationMembership.Role.ADMIN, OrganizationMembership.Role.MEMBER)
     )
+
+
+class OrganizationMembershipRoleUpdateSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(
+        choices=(OrganizationMembership.Role.ADMIN, OrganizationMembership.Role.MEMBER)
+    )

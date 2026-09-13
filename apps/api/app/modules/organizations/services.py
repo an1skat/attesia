@@ -64,3 +64,103 @@ def add_organization_member(
                 "User is already an organization member.", code="membership_exists"
             ) from exc
         raise
+
+
+@transaction.atomic
+def update_organization_membership_role(
+    *, actor: User, organization_id: int, member_id: int, role: str
+) -> OrganizationMembership:
+    try:
+        organization = Organization.objects.get(pk=organization_id)
+    except Organization.DoesNotExist as exc:
+        raise ValidationError(
+            "Organization does not exist.", code="organization_not_found"
+        ) from exc
+
+    try:
+        membership = organization.memberships.select_for_update().get(pk=member_id)
+    except OrganizationMembership.DoesNotExist as exc:
+        raise ValidationError(
+            "Membership does not exist.", code="membership_not_found"
+        ) from exc
+
+    if not organization.memberships.filter(
+        user_id=actor.pk, role=OrganizationMembership.Role.OWNER
+    ).exists():
+        raise PermissionDenied("Only owners can change organization membership roles.")
+
+    if role not in (
+        OrganizationMembership.Role.ADMIN,
+        OrganizationMembership.Role.MEMBER,
+    ):
+        raise ValidationError(
+            "Only admin or member roles can be assigned.", code="invalid_role"
+        )
+    if membership.role == OrganizationMembership.Role.OWNER:
+        raise ValidationError(
+            "Owner membership role cannot be changed.", code="owner_role_immutable"
+        )
+
+    membership.role = role
+    membership.save(update_fields=("role",))
+    return membership
+
+
+@transaction.atomic
+def remove_organization_member(
+    *, actor: User, organization_id: int, member_id: int
+) -> None:
+    try:
+        organization = Organization.objects.get(pk=organization_id)
+    except Organization.DoesNotExist as exc:
+        raise ValidationError(
+            "Organization does not exist.", code="organization_not_found"
+        ) from exc
+
+    try:
+        membership = organization.memberships.select_for_update().get(pk=member_id)
+    except OrganizationMembership.DoesNotExist as exc:
+        raise ValidationError(
+            "Membership does not exist.", code="membership_not_found"
+        ) from exc
+
+    actor_role = (
+        organization.memberships.filter(user_id=actor.pk)
+        .values_list("role", flat=True)
+        .first()
+    )
+    allowed_roles = {
+        OrganizationMembership.Role.OWNER: (
+            OrganizationMembership.Role.ADMIN,
+            OrganizationMembership.Role.MEMBER,
+        ),
+        OrganizationMembership.Role.ADMIN: (OrganizationMembership.Role.MEMBER,),
+    }
+    if membership.user_id == actor.pk or membership.role not in allowed_roles.get(
+        actor_role, ()
+    ):
+        raise PermissionDenied("You cannot remove this organization membership.")
+
+    membership.delete()
+
+
+@transaction.atomic
+def leave_organization(*, actor: User, organization_id: int) -> None:
+    try:
+        organization = Organization.objects.get(pk=organization_id)
+    except Organization.DoesNotExist as exc:
+        raise ValidationError(
+            "Organization does not exist.", code="organization_not_found"
+        ) from exc
+
+    try:
+        membership = organization.memberships.select_for_update().get(user_id=actor.pk)
+    except OrganizationMembership.DoesNotExist as exc:
+        raise ValidationError(
+            "Membership does not exist.", code="membership_not_found"
+        ) from exc
+
+    if membership.role == OrganizationMembership.Role.OWNER:
+        raise PermissionDenied("Owners cannot leave their organization.")
+
+    membership.delete()
