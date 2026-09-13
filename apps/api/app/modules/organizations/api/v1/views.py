@@ -19,6 +19,7 @@ from app.modules.organizations.selectors import (
 )
 from app.modules.organizations.services import (
     add_organization_member,
+    remove_organization_member,
     update_organization_membership_role,
 )
 
@@ -95,6 +96,19 @@ class OrganizationMemberDetailView(APIView):
             OrganizationMembershipSerializer(membership).data,
             status=status.HTTP_200_OK,
         )
+
+    def delete(self, request, organization_id, member_id):
+        try:
+            remove_organization_member(
+                actor=request.user,
+                organization_id=organization_id,
+                member_id=member_id,
+            )
+        except DjangoValidationError as exc:
+            if exc.code in ("organization_not_found", "membership_not_found"):
+                raise NotFound(exc.message, code=exc.code) from exc
+            raise ValidationError(exc.messages, code=exc.code) from exc
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OrganizationPagination(PageNumberPagination):

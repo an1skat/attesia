@@ -11,6 +11,7 @@ from app.modules.organizations.models import Organization, OrganizationMembershi
 from app.modules.organizations.services import (
     add_organization_member,
     create_organization,
+    remove_organization_member,
     update_organization_membership_role,
 )
 
@@ -296,4 +297,64 @@ def test_update_membership_role_enforces_business_rules(
 
     if code:
         assert error.value.code == code
+    assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize(
+    "actor_role, target_role",
+    [("owner", "member"), ("owner", "admin"), ("admin", "member")],
+)
+def test_remove_organization_member(membership_args, actor_role, target_role):
+    membership_args["role"] = target_role
+    membership = add_organization_member(**membership_args)
+    OrganizationMembership.objects.filter(user=membership_args["actor"]).update(
+        role=actor_role
+    )
+
+    remove_organization_member(
+        actor=membership_args["actor"],
+        organization_id=membership.organization_id,
+        member_id=membership.pk,
+    )
+
+    assert not OrganizationMembership.objects.filter(pk=membership.pk).exists()
+    assert User.objects.filter(pk=membership.user_id).exists()
+    assert Organization.objects.filter(pk=membership.organization_id).exists()
+
+
+@pytest.mark.parametrize(
+    "actor_role, target_role, target_is_actor",
+    [
+        ("owner", "owner", True),
+        ("owner", "owner", False),
+        ("admin", "admin", False),
+        ("admin", "owner", False),
+        ("admin", "admin", True),
+        ("member", "member", False),
+        ("outsider", "member", False),
+    ],
+)
+def test_remove_organization_member_enforces_business_rules(
+    membership_args, actor_role, target_role, target_is_actor
+):
+    target = add_organization_member(**membership_args)
+    target.role = target_role
+    target.save(update_fields=("role",))
+    actor_membership = OrganizationMembership.objects.get(user=membership_args["actor"])
+    if actor_role == "outsider":
+        actor_membership.delete()
+    else:
+        actor_membership.role = actor_role
+        actor_membership.save(update_fields=("role",))
+    if target_is_actor:
+        target = actor_membership
+    before = list(OrganizationMembership.objects.order_by("pk").values())
+
+    with pytest.raises(PermissionDenied):
+        remove_organization_member(
+            actor=membership_args["actor"],
+            organization_id=target.organization_id,
+            member_id=target.pk,
+        )
+
     assert list(OrganizationMembership.objects.order_by("pk").values()) == before
