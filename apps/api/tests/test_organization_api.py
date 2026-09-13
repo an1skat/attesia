@@ -868,3 +868,72 @@ def test_delete_membership_not_found(
     assert response.data["detail"].code == f"{expected}_not_found"
     assert response.json() == {"detail": f"{expected.title()} does not exist."}
     assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.fixture
+def leave_url(organization):
+    url = reverse(
+        "organizations:organization_leave",
+        kwargs={"organization_id": organization.pk},
+    )
+    assert url == f"/api/v1/organizations/{organization.pk}/leave/"
+    return url
+
+
+@pytest.mark.parametrize("role", ["member", "admin"])
+def test_leave_organization(client, owner, organization, target_user, leave_url, role):
+    membership = OrganizationMembership.objects.create(
+        organization=organization, user=target_user, role=role
+    )
+    owner_membership = organization.memberships.get(user=owner)
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(target_user)}")
+
+    response = client.post(
+        leave_url,
+        {"user_id": owner.pk, "member_id": owner_membership.pk},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert response.content == b""
+    assert not OrganizationMembership.objects.filter(pk=membership.pk).exists()
+    assert OrganizationMembership.objects.filter(pk=owner_membership.pk).exists()
+    assert User.objects.filter(pk=target_user.pk).exists()
+    assert Organization.objects.filter(pk=organization.pk).exists()
+
+
+def test_owner_cannot_leave_organization(client, organization, leave_url):
+    before = list(organization.memberships.values())
+
+    response = client.post(leave_url)
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert list(organization.memberships.values()) == before
+
+
+def test_non_member_cannot_leave_organization(
+    client, organization, target_user, leave_url
+):
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(target_user)}")
+
+    response = client.post(leave_url)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data["detail"].code == "membership_not_found"
+    assert organization.memberships.count() == 1
+
+
+def test_leave_organization_requires_authentication(organization, leave_url):
+    response = APIClient().post(leave_url)
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert organization.memberships.count() == 1
+
+
+def test_leave_missing_organization_returns_404(client, organization, leave_url):
+    organization.delete()
+
+    response = client.post(leave_url)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data["detail"].code == "organization_not_found"

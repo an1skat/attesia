@@ -11,6 +11,7 @@ from app.modules.organizations.models import Organization, OrganizationMembershi
 from app.modules.organizations.services import (
     add_organization_member,
     create_organization,
+    leave_organization,
     remove_organization_member,
     update_organization_membership_role,
 )
@@ -358,3 +359,47 @@ def test_remove_organization_member_enforces_business_rules(
         )
 
     assert list(OrganizationMembership.objects.order_by("pk").values()) == before
+
+
+@pytest.mark.parametrize("role", ["member", "admin"])
+def test_leave_organization(membership_args, role):
+    membership = OrganizationMembership.objects.get(user=membership_args["actor"])
+    membership.role = role
+    membership.save(update_fields=("role",))
+
+    leave_organization(
+        actor=membership_args["actor"],
+        organization_id=membership_args["organization_id"],
+    )
+
+    assert not OrganizationMembership.objects.filter(pk=membership.pk).exists()
+    assert User.objects.filter(pk=membership.user_id).exists()
+    assert Organization.objects.filter(pk=membership.organization_id).exists()
+
+
+def test_owner_cannot_leave_organization(membership_args):
+    before = list(OrganizationMembership.objects.values())
+
+    with pytest.raises(PermissionDenied):
+        leave_organization(
+            actor=membership_args["actor"],
+            organization_id=membership_args["organization_id"],
+        )
+
+    assert list(OrganizationMembership.objects.values()) == before
+
+
+@pytest.mark.parametrize("missing", ["organization", "membership"])
+def test_leave_organization_rejects_missing_object(membership_args, missing):
+    if missing == "organization":
+        Organization.objects.filter(pk=membership_args["organization_id"]).delete()
+    else:
+        OrganizationMembership.objects.filter(user=membership_args["actor"]).delete()
+
+    with pytest.raises(ValidationError) as error:
+        leave_organization(
+            actor=membership_args["actor"],
+            organization_id=membership_args["organization_id"],
+        )
+
+    assert error.value.code == f"{missing}_not_found"

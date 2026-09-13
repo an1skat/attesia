@@ -19,6 +19,7 @@ from app.modules.organizations.selectors import (
 )
 from app.modules.organizations.services import (
     add_organization_member,
+    leave_organization,
     remove_organization_member,
     update_organization_membership_role,
 )
@@ -108,6 +109,17 @@ class OrganizationMemberDetailView(APIView):
             if exc.code in ("organization_not_found", "membership_not_found"):
                 raise NotFound(exc.message, code=exc.code) from exc
             raise ValidationError(exc.messages, code=exc.code) from exc
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OrganizationLeaveView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, organization_id):
+        try:
+            leave_organization(actor=request.user, organization_id=organization_id)
+        except DjangoValidationError as exc:
+            raise NotFound(exc.message, code=exc.code) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

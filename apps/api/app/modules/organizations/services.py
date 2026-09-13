@@ -142,3 +142,25 @@ def remove_organization_member(
         raise PermissionDenied("You cannot remove this organization membership.")
 
     membership.delete()
+
+
+@transaction.atomic
+def leave_organization(*, actor: User, organization_id: int) -> None:
+    try:
+        organization = Organization.objects.get(pk=organization_id)
+    except Organization.DoesNotExist as exc:
+        raise ValidationError(
+            "Organization does not exist.", code="organization_not_found"
+        ) from exc
+
+    try:
+        membership = organization.memberships.select_for_update().get(user_id=actor.pk)
+    except OrganizationMembership.DoesNotExist as exc:
+        raise ValidationError(
+            "Membership does not exist.", code="membership_not_found"
+        ) from exc
+
+    if membership.role == OrganizationMembership.Role.OWNER:
+        raise PermissionDenied("Owners cannot leave their organization.")
+
+    membership.delete()
