@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "app.modules.users",
     "app.modules.organizations",
+    "app.modules.events",
 ]
 
 MIDDLEWARE = [
