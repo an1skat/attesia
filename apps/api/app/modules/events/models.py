@@ -5,20 +5,29 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from app.modules.organizations.models import Organization
+
 
 class Event(models.Model):
     class Status(models.TextChoices):
-        REGISTER = "RG", _("Register")
-        ENDING = "EN", _("Ending")
+        __empty__ = _("Select the event status")
 
-    title = models.CharField(max_length=128, blank=True, db_index=True)
-    description = models.TextField(blank=True)
-    organizator = models.CharField(max_length=128, blank=True, db_index=True)
+        PLANNED = "planned", _("Planned")
+        REGISTRATION_OPEN = "registration_open", _("Register open")
+        IN_PROGRESS = "in_progress", _("In progress")
+        FINISHED = "finished", _("Finished")
+        CANCELED = "canceled", _("Canceled")
 
-    status = models.BooleanField(
-        max_length=2,
+    title = models.CharField(max_length=150, db_index=True)
+    description = models.TextField(max_length=1500, blank=True)
+    organizator = models.ForeignKey(
+        Organization,
+        related_name="organization_events",
+    )
+
+    status = models.CharField(
+        max_length=20,
         choices=Status.choices,
-        default=Status.REGISTER,
         db_index=True,
     )
     location = models.CharField(
