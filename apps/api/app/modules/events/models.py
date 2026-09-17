@@ -20,10 +20,6 @@ class Event(models.Model):
 
     title = models.CharField(max_length=150, db_index=True)
     description = models.TextField(max_length=1500, blank=True)
-    organizator = models.ForeignKey(
-        Organization,
-        related_name="organization_events",
-    )
 
     status = models.CharField(
         max_length=20,
@@ -42,6 +38,32 @@ class Event(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    organizator = models.ForeignKey(
+        Organization,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organization_events",
+    )
+
+    organization_title = models.CharField(
+        max_length=255,
+        blank=True,
+        editable=False,
+        help_text=_("Historical name of the organization"),
+    )
+
+    def save(self, *args, **kwargs):
+        if self.organizator:
+            self.organization_title = self.organizator.name
+        super().save(*args, **kwargs)
+
+    @property
+    def organization_display_name(self):
+        if self.organizator:
+            return self.organizator.name
+        return self.organization_title or _("Unknown Organization")
 
     class Meta:
         verbose_name = _("Event")
