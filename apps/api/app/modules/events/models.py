@@ -84,6 +84,10 @@ class Event(models.Model):
                 condition=Q(status__in=EventStatus.values),
                 name="event_status_valid_choice",
             ),
+            CheckConstraint(
+                condition=Q(organization__isnull=False) | ~Q(organization_title=""),
+                name="event_require_title_when_no_organization",
+            ),
         ]
 
     def __str__(self):
@@ -95,5 +99,13 @@ class Event(models.Model):
             raise ValidationError(
                 {
                     "ends_at": _("The end date cannot be earlier than the start date"),
+                }
+            )
+        if not self.organization and not self.organization_title:
+            raise ValidationError(
+                {
+                    "organization_title": _(
+                        "Organization title is required when no organization is attached."
+                    ),
                 }
             )

@@ -81,3 +81,22 @@ class EventModelConstraintsTestCase(TestCase):
         self.assertIsNone(event.organization)
         self.assertEqual(event.organization_title, "Cybersec Corp")
         self.assertEqual(event.organization_display_name, "Cybersec Corp")
+
+    def test_db_constraint_allows_null_dates(self):
+        event_null_end = Event.objects.create(
+            title="Open End Event",
+            status=EventStatus.PLANNED,
+            starts_at=self.now,
+            ends_at=None,
+            organization_title="KPI",
+        )
+        self.assertIsNotNone(event_null_end.pk)
+
+        event_null_both = Event.objects.create(
+            title="TBD Dates Event",
+            status=EventStatus.PLANNED,
+            starts_at=None,
+            ends_at=None,
+            organization_title="KPI",
+        )
+        self.assertIsNotNone(event_null_both.pk)
