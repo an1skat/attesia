@@ -65,8 +65,6 @@ class Event(models.Model):
 
     @property
     def organization_display_name(self):
-        if self.organization:
-            return self.organization.name
         return self.organization_title or _("Unknown Organization")
 
     class Meta:
