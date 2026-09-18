@@ -36,6 +36,7 @@ class EventModelConstraintsTestCase(TestCase):
             status=EventStatus.PLANNED,
             starts_at=self.now,
             ends_at=None,
+            organization_title="KPI",
         )
         self.assertIsNotNone(event_null_end.pk)
 
@@ -44,6 +45,7 @@ class EventModelConstraintsTestCase(TestCase):
             status=EventStatus.PLANNED,
             starts_at=None,
             ends_at=None,
+            organization_title="KPI",
         )
         self.assertIsNotNone(event_null_both.pk)
 
@@ -82,21 +84,19 @@ class EventModelConstraintsTestCase(TestCase):
         self.assertEqual(event.organization_title, "Cybersec Corp")
         self.assertEqual(event.organization_display_name, "Cybersec Corp")
 
-    def test_db_constraint_allows_null_dates(self):
-        event_null_end = Event.objects.create(
-            title="Open End Event",
+    def test_db_constraint_requires_organization_title_if_organization_is_null(self):
+        valid_event = Event.objects.create(
+            title="External Event",
             status=EventStatus.PLANNED,
-            starts_at=self.now,
-            ends_at=None,
+            organization=None,
             organization_title="KPI",
         )
-        self.assertIsNotNone(event_null_end.pk)
+        self.assertIsNotNone(valid_event.pk)
 
-        event_null_both = Event.objects.create(
-            title="TBD Dates Event",
-            status=EventStatus.PLANNED,
-            starts_at=None,
-            ends_at=None,
-            organization_title="KPI",
-        )
-        self.assertIsNotNone(event_null_both.pk)
+        with self.assertRaises(IntegrityError):
+            Event.objects.create(
+                title="Orphan Event",
+                status=EventStatus.PLANNED,
+                organization=None,
+                organization_title="",
+            )
