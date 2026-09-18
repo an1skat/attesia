@@ -59,7 +59,7 @@ class Event(models.Model):
     )
 
     def save(self, *args, **kwargs):
-        if self.organization:
+        if not self.pk and self.organization:
             self.organization_title = self.organization.name
         super().save(*args, **kwargs)
 

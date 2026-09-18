@@ -100,3 +100,21 @@ class EventModelConstraintsTestCase(TestCase):
                 organization=None,
                 organization_title="",
             )
+
+    def test_organization_title_snapshot_does_not_change_on_organization_rename(self):
+        event = Event.objects.create(
+            title="Snapshot Test Event",
+            status=EventStatus.PLANNED,
+            organization=self.organization,
+        )
+        self.assertEqual(event.organization_title, "Cybersec Corp")
+
+        self.organization.name = "New Super Corp"
+        self.organization.save()
+
+        event.title = "Updated Event Title"
+        event.save()
+        event.refresh_from_db()
+
+        self.assertEqual(event.organization_title, "Cybersec Corp")
+        self.assertEqual(event.title, "Updated Event Title")
