@@ -2,7 +2,7 @@ from typing import ClassVar
 
 from rest_framework import serializers
 
-from app.modules.events.models import Event
+from app.modules.events.models import Event, EventStatus
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -34,6 +34,8 @@ class EventSerializer(serializers.ModelSerializer):
 
 
 class EventCreateSerializer(serializers.ModelSerializer):
+    status = serializers.ChoiceField(choices=EventStatus.choices, required=True)
+
     class Meta:
         model = Event
         fields = (
@@ -44,6 +46,16 @@ class EventCreateSerializer(serializers.ModelSerializer):
             "starts_at",
             "ends_at",
         )
+
+    def validate(self, attrs):
+        starts_at = attrs.get("starts_at")
+        ends_at = attrs.get("ends_at")
+
+        if starts_at and ends_at and ends_at < starts_at:
+            raise serializers.ValidationError(
+                {"ends_at": "Ends at date cannot be earlier than starts at date."},
+            )
+        return attrs
 
 
 class EventUpdateSerializer(serializers.ModelSerializer):

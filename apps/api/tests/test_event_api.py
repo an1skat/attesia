@@ -1,4 +1,3 @@
-# app/modules/events/tests/test_event_api.py
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
@@ -126,3 +125,33 @@ class EventAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["id"], self.event.id)
         self.assertEqual(response.data["title"], self.event.title)
+
+    def test_create_event_invalid_dates_returns_400(self):
+        self.client.force_authenticate(user=self.owner)
+        payload = {
+            "title": "Invalid Event",
+            "status": EventStatus.PLANNED,
+            "starts_at": "2026-10-10T12:00:00Z",
+            "ends_at": "2026-10-09T12:00:00Z",
+        }
+        response = self.client.post(self.org_events_url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ends_at", response.data)
+
+    def test_create_event_missing_status_returns_400(self):
+        self.client.force_authenticate(user=self.owner)
+        payload = {
+            "title": "No Status Event",
+            "starts_at": "2026-10-10T12:00:00Z",
+            "ends_at": "2026-10-10T14:00:00Z",
+        }
+        response = self.client.post(self.org_events_url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+
+    def test_get_events_non_existent_organization_returns_404(self):
+        url = reverse(
+            "events:organization_event_list_create", kwargs={"organization_id": 99999}
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

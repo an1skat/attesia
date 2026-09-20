@@ -70,7 +70,9 @@ class OrganizationEventListView(APIView, EventPagination):
     permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwner]
 
     def get(self, request, organization_id):
-        events = get_events_by_organization(organization_id=organization_id)
+        organization = get_object_or_404(Organization, pk=organization_id)
+        events = get_events_by_organization(organization_id=organization.id)
+
         page = self.paginate_queryset(events, request, view=self)
         if page is not None:
             serializer = EventSerializer(page, many=True)
