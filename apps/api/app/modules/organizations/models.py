@@ -11,6 +11,8 @@ class Organization(models.Model):
 
 
 class OrganizationMembership(models.Model):
+    objects: models.Manager = models.Manager()
+
     class Role(models.TextChoices):
         OWNER = "owner"
         ADMIN = "admin"

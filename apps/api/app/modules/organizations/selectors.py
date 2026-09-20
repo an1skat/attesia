@@ -6,6 +6,10 @@ from .models import Organization, OrganizationMembership
 User = get_user_model()
 
 
+def get_organization_by_id(organization_id: int) -> Organization:
+    return Organization.objects.get(pk=organization_id)
+
+
 def get_user_organizations(*, user: User) -> QuerySet[Organization]:
     return Organization.objects.filter(memberships__user=user).order_by("pk")
 
