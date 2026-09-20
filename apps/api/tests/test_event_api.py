@@ -155,3 +155,15 @@ class EventAPITestCase(APITestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_patch_event_invalid_dates_returns_400(self):
+        self.client.force_authenticate(user=self.owner)
+
+        payload = {
+            "starts_at": "2026-10-10T12:00:00Z",
+            "ends_at": "2026-10-09T12:00:00Z",
+        }
+        response = self.client.patch(self.event_detail_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ends_at", response.data)

@@ -32,6 +32,9 @@ class EventService:
         for field, value in validate_data.items():
             setattr(event, field, value)
 
-        event.full_clean()
+        try:
+            event.full_clean()
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict)
         event.save()
         return event
