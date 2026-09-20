@@ -23,4 +23,5 @@ urlpatterns = [
     path("api/v1/", include("app.core.api.v1.urls")),
     path("api/v1/", include("app.modules.users.api.v1.urls")),
     path("api/v1/", include("app.modules.organizations.api.v1.urls")),
+    path("api/v1/", include("app.modules.events.api.v1.urls")),
 ]
