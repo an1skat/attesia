@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "app.modules.users",
     "app.modules.organizations",
     "app.modules.events",
+    "app.modules.credentials",
 ]
 
 MIDDLEWARE = [
