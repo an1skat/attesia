@@ -2,7 +2,12 @@ from typing import ClassVar
 
 from rest_framework import serializers
 
-from app.modules.events.models import Event, EventStatus
+from app.modules.events.models import (
+    Event,
+    EventParticipant,
+    EventStatus,
+    ParticipantSource,
+)
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -70,3 +75,41 @@ class EventUpdateSerializer(serializers.ModelSerializer):
             "ends_at",
         )
         extra_kwargs: ClassVar[dict] = {field: {"required": False} for field in fields}
+
+
+class EventParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventParticipant
+        fields = (
+            "id",
+            "event",
+            "user",
+            "name",
+            "email",
+            "source",
+        )
+        read_only_fields = ("id", "event", "created_at", "updated_at")
+
+
+class EventParticipantCreateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=True, max_length=255)
+    email = serializers.EmailField(required=True)
+    source = serializers.ChoiceField(
+        choices=ParticipantSource.choices,
+        default=ParticipantSource.MANUAL,
+    )
+
+    class Meta:
+        model = EventParticipant
+        fields = ("user", "name", "email", "source")
+
+    def validate(self, attrs):
+        user = attrs.get("user")
+        name = attrs.get("name")
+        email = attrs.get("email")
+
+        if not user and not (name and email):
+            raise serializers.ValidationError(
+                "Either 'user' or both 'name' and 'email' must be provided."
+            )
+        return attrs
