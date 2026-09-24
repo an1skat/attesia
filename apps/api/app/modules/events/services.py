@@ -41,7 +41,7 @@ class EventService:
 
     @staticmethod
     @transaction.atomic
-    def add_participant(*, event: Event, validate_data: dict) -> Event:
+    def add_participant(*, event: Event, validate_data: dict) -> EventParticipant:
         participant = EventParticipant(
             event=event,
             user=validate_data.get("user"),
