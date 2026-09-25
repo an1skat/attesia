@@ -50,7 +50,20 @@ class EventParticipantAPITestCase(APITestCase):
             kwargs={"event_id": self.event.pk},
         )
 
-    def test_get_participants_success(self):
+    def test_get_participants_by_owner_success(self):
+        EventParticipant.objects.create(
+            event=self.event,
+            name="John Doe",
+            email="john@example.com",
+        )
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(self.participants_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_get_participants_by_regular_member_success(self):
         EventParticipant.objects.create(
             event=self.event,
             name="John Doe",
@@ -61,14 +74,13 @@ class EventParticipantAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
-        self.assertEqual(len(response.data["results"]), 1)
 
     def test_get_participants_unauthenticated_fails(self):
         response = self.client.get(self.participants_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_participants_non_existent_event_404(self):
-        self.client.force_authenticate(user=self.member)
+        self.client.force_authenticate(user=self.owner)
         url = reverse(
             "events:event_participant_list_create",
             kwargs={"event_id": 99999},
@@ -82,15 +94,16 @@ class EventParticipantAPITestCase(APITestCase):
             "user": self.participant_user.pk,
             "name": "Participant User",
             "email": "participant@example.com",
-            "source": ParticipantSource.MANUAL,
+            "source": ParticipantSource.IMPORT,
         }
         response = self.client.post(self.participants_url, data=payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(EventParticipant.objects.count(), 1)
-        self.assertEqual(
-            EventParticipant.objects.get().email, "participant@example.com"
-        )
+
+        participant = EventParticipant.objects.get()
+        self.assertEqual(participant.email, "participant@example.com")
+        self.assertEqual(participant.source, ParticipantSource.MANUAL)
 
     def test_create_guest_participant_success(self):
         self.client.force_authenticate(user=self.owner)
@@ -155,6 +168,20 @@ class EventParticipantAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_participant_duplicate_email_with_user_fails(self):
+        EventParticipant.objects.create(
+            event=self.event,
+            user=self.participant_user,
+            email="test@example.com",
+            name="User 1",
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        payload = {"name": "User 2", "email": "test@example.com"}
+        response = self.client.post(self.participants_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_delete_participant_by_owner_success(self):
         participant = EventParticipant.objects.create(
             event=self.event,
@@ -185,3 +212,22 @@ class EventParticipantAPITestCase(APITestCase):
         response = self.client.delete(url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_participant_from_wrong_event_returns_404(self):
+        other_event = Event.objects.create(
+            organization=self.organization,
+            title="Other Event",
+            status=EventStatus.PLANNED,
+        )
+        participant = EventParticipant.objects.create(
+            event=self.event, name="John", email="john@example.com"
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        wrong_url = reverse(
+            "events:event_participant_detail",
+            kwargs={"event_id": other_event.pk, "pk": participant.pk},
+        )
+        response = self.client.delete(wrong_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

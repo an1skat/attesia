@@ -122,7 +122,7 @@ class EventParticipant(models.Model):
     event = models.ForeignKey(
         Event,
         on_delete=models.CASCADE,
-        related_name="participant_events",
+        related_name="participants",
     )
 
     user = models.ForeignKey(
@@ -157,7 +157,6 @@ class EventParticipant(models.Model):
             models.UniqueConstraint(
                 fields=["event", "email"],
                 name="unique_event_participant_email",
-                condition=models.Q(user__isnull=True),
             ),
         ]
 

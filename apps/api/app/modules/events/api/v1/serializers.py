@@ -6,7 +6,6 @@ from app.modules.events.models import (
     Event,
     EventParticipant,
     EventStatus,
-    ParticipantSource,
 )
 
 
@@ -87,6 +86,8 @@ class EventParticipantSerializer(serializers.ModelSerializer):
             "name",
             "email",
             "source",
+            "created_at",
+            "updated_at",
         )
         read_only_fields = ("id", "event", "created_at", "updated_at")
 
@@ -94,14 +95,10 @@ class EventParticipantSerializer(serializers.ModelSerializer):
 class EventParticipantCreateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=True, max_length=255)
     email = serializers.EmailField(required=True)
-    source = serializers.ChoiceField(
-        choices=ParticipantSource.choices,
-        default=ParticipantSource.MANUAL,
-    )
 
     class Meta:
         model = EventParticipant
-        fields = ("user", "name", "email", "source")
+        fields = ("user", "name", "email")
 
     def validate(self, attrs):
         user = attrs.get("user")

@@ -21,7 +21,7 @@ from app.modules.events.api.v1.serializers import (
     EventSerializer,
     EventUpdateSerializer,
 )
-from app.modules.events.models import Event, EventParticipant
+from app.modules.events.models import Event, EventParticipant, ParticipantSource
 from app.modules.events.selectors import (
     get_all_events,
     get_events_by_organization,
@@ -113,6 +113,8 @@ class EventParticipantListCreateView(APIView, EventPagination):
 
     def get(self, request, event_id):
         event = get_object_or_404(Event, pk=event_id)
+        self.check_object_permissions(request, event)
+
         participants = get_events_participants(event_id=event.id)
 
         page = self.paginate_queryset(participants, request, view=self)
@@ -133,7 +135,10 @@ class EventParticipantListCreateView(APIView, EventPagination):
         try:
             participant = EventService.add_participant(
                 event=event,
-                validate_data=serializer.validated_data,
+                validate_data={
+                    **serializer.validated_data,
+                    "source": ParticipantSource.MANUAL,
+                },
             )
         except DjangoValidationError as e:
             raise DRFValidationError(
@@ -151,7 +156,7 @@ class EventParticipantDetailView(APIView):
         event = get_object_or_404(Event, pk=event_id)
         self.check_object_permissions(request, event)
 
-        participant = get_object_or_404(EventParticipant, pk=pk)
+        participant = get_object_or_404(EventParticipant, pk=pk, event_id=event.id)
         EventService.remove_participant(participant=participant)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
