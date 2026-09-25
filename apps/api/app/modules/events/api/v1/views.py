@@ -59,6 +59,7 @@ class EventDetailView(APIView):
 
     def get(self, request, pk):
         event = get_object_or_404(get_all_events(), pk=pk)
+        self.check_object_permissions(request, event)
         serializer = EventSerializer(event)
         return Response(serializer.data)
 
@@ -81,6 +82,8 @@ class OrganizationEventListView(APIView, EventPagination):
 
     def get(self, request, organization_id):
         organization = get_object_or_404(Organization, pk=organization_id)
+        self.check_object_permissions(request, organization)
+
         events = get_events_by_organization(organization_id=organization.id)
 
         page = self.paginate_queryset(events, request, view=self)

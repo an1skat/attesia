@@ -120,6 +120,7 @@ class EventAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_event_detail_success(self):
+        self.client.force_authenticate(user=self.member)
         response = self.client.get(self.event_detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -150,6 +151,7 @@ class EventAPITestCase(APITestCase):
         self.assertIn("status", response.data)
 
     def test_get_events_non_existent_organization_returns_404(self):
+        self.client.force_authenticate(user=self.owner)
         url = reverse(
             "events:organization_event_list_create", kwargs={"organization_id": 99999}
         )
