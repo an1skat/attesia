@@ -1,9 +1,10 @@
 # Create your models here.
 from typing import ClassVar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import CheckConstraint, F, Q
+from django.db.models import CheckConstraint, F, Q, UniqueConstraint
 from django.utils.translation import gettext_lazy as _
 
 from app.modules.organizations.models import Organization
@@ -15,6 +16,12 @@ class EventStatus(models.TextChoices):
     IN_PROGRESS = "in_progress", _("In progress")
     FINISHED = "finished", _("Finished")
     CANCELED = "canceled", _("Canceled")
+
+
+class EventParticipantStatus(models.TextChoices):
+    MANUAL = "manual", _("Manual")
+    REGISTER = "register", _("Register")
+    IMPORT = "import", _("Import")
 
 
 class Event(models.Model):
@@ -107,3 +114,59 @@ class Event(models.Model):
                     ),
                 }
             )
+
+
+class EventParticipant(models.Model):
+    Status = EventParticipantStatus
+
+    objects: models.Manager = models.Manager()
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="participants",
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="event_participants",
+    )
+
+    name = models.CharField(max_length=255)
+    email = models.EmailField(max_length=255)
+
+    source = models.CharField(
+        max_length=20,
+        choices=EventParticipantStatus.choices,
+        default=EventParticipantStatus.MANUAL,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Participant")
+        verbose_name_plural = _("Participants")
+        ordering: ClassVar[list] = ["-created_at"]
+        constraints: ClassVar[list] = [
+            UniqueConstraint(
+                fields=["event", "email"],
+                name="unique_participant_email_per_event",
+            ),
+            UniqueConstraint(
+                fields=["event", "user"],
+                condition=Q(user__isnull=False),
+                name="unique_participant_user_per_event",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.email:
+            self.email = self.email.lower().strip()
+
+    def __str__(self):
+        return f"{self.name} ({self.email}) - {self.event.title}"

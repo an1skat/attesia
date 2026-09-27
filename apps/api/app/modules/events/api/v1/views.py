@@ -3,18 +3,24 @@ from typing import ClassVar
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.modules.events.api.v1.permissions import IsOrganizationAdminOrOwner
+from app.modules.events.api.v1.permissions import (
+    IsOrganizationAdminOrOwner,
+    IsOrganizationAdminOrOwnerOrReadOnly,
+)
 from app.modules.events.api.v1.serializers import (
     EventCreateSerializer,
+    EventParticipantCreateSerializer,
+    EventParticipantSerializer,
     EventSerializer,
     EventUpdateSerializer,
 )
 from app.modules.events.selectors import (
     get_all_events,
+    get_event_participants,
     get_events_by_organization,
 )
 from app.modules.events.services import EventService
@@ -42,10 +48,7 @@ class EventListView(APIView, EventPagination):
 
 
 class EventDetailView(APIView):
-    permission_classes: ClassVar[list] = [
-        IsAuthenticatedOrReadOnly,
-        IsOrganizationAdminOrOwner,
-    ]
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
 
     def get(self, request, pk):
         event = get_object_or_404(get_all_events(), pk=pk)
@@ -61,7 +64,7 @@ class EventDetailView(APIView):
 
         update_event = EventService.update_event(
             event=event,
-            validate_data=serializer.validated_data,
+            validated_data=serializer.validated_data,
         )
         return Response(EventSerializer(update_event).data, status=status.HTTP_200_OK)
 
@@ -90,6 +93,57 @@ class OrganizationEventListView(APIView, EventPagination):
 
         event = EventService.create_event(
             organization=organization,
-            validate_data=serializer.validated_data,
+            validated_data=serializer.validated_data,
         )
         return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
+
+
+class EventParticipantListView(APIView, EventPagination):
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [AllowAny()]
+        return [IsOrganizationAdminOrOwnerOrReadOnly()]
+
+    def get(self, request, event_id):
+        event = get_object_or_404(get_all_events(), pk=event_id)
+        participants = get_event_participants(event_id=event.id)
+
+        page = self.paginate_queryset(participants, request, view=self)
+        if page is not None:
+            serializer = EventParticipantSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = EventParticipantSerializer(participants, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, event_id):
+        event = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, event)
+
+        serializer = EventParticipantCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        participant = EventService.add_participant(
+            event=event,
+            validated_data=serializer.validated_data,
+        )
+        return Response(
+            EventParticipantSerializer(participant).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class EventParticipantDetailView(APIView):
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
+
+    def delete(self, request, event_id, participant_id):
+        event = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, event)
+
+        EventService.remove_participant(
+            event=event,
+            participant_id=participant_id,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
