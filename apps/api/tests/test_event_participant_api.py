@@ -230,3 +230,14 @@ class EventParticipantAPITestCase(APITestCase):
             response.status_code,
             [status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND],
         )
+
+    def test_delete_non_existent_participant_returns_404(self):
+        self.client.force_authenticate(user=self.owner)
+        url = reverse(
+            "events:event_participant_detail",
+            kwargs={"event_id": self.event.pk, "participant_id": 99999},
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

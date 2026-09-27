@@ -2,6 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.generics import get_object_or_404
 
 from app.modules.events.models import (
     Event,
@@ -54,7 +55,7 @@ class EventService:
     ) -> EventParticipant:
         email = validated_data["email"].lower().strip()
 
-        if EventParticipant.objects.filter(email=email).exists():
+        if EventParticipant.objects.filter(event=event, email=email).exists():
             raise DRFValidationError(
                 {"email": "Participant with this email already exists in this event."}
             )
@@ -88,7 +89,8 @@ class EventService:
         participant_id: int,
     ) -> None:
         try:
-            participant = EventParticipant.objects.get(
+            participant = get_object_or_404(
+                EventParticipant,
                 id=participant_id,
                 event=event,
             )

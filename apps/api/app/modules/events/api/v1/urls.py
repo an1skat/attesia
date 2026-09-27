@@ -18,7 +18,7 @@ urlpatterns = [
         name="organization_event_list_create",
     ),
     path(
-        "events/<int:event_id>/participants",
+        "events/<int:event_id>/participants/",
         EventParticipantListView.as_view(),
         name="event_participant_list",
     ),

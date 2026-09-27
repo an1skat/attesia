@@ -2,24 +2,6 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from app.modules.organizations.models import Organization, OrganizationMembership
 
-# class IsOrganizationAdminOrOwner(BasePermission):
-#     def has_object_permission(self, request, view, obj):
-#         if request.method in ("GET", "HEAD", "OPTIONS"):
-#             return True
-#
-#         if not request.user or not request.user.is_authenticated:
-#             return False
-#
-#         organization = obj if isinstance(obj, Organization) else obj.organization
-#         return OrganizationMembership.objects.filter(
-#             organization=organization,
-#             user=request.user,
-#             role__in=[
-#                 OrganizationMembership.Role.ADMIN,
-#                 OrganizationMembership.Role.OWNER,
-#             ],
-#         ).exists()
-
 
 class IsOrganizationAdminOrOwnerOrReadOnly(BasePermission):
     def has_permission(self, request, view):
@@ -49,9 +31,12 @@ class IsOrganizationMemberOrAdminForWrite(BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
     def has_object_permission(self, request, view, obj):
-        organization = getattr(obj, "organization", None) or getattr(
-            obj.event, "organization", None
-        )
+        organization = None
+        if hasattr(obj, "organization"):
+            organization = obj.organization
+        elif hasattr(obj, "event") and getattr(obj.event, "organization", None):
+            organization = obj.event.organization
+
         if not organization:
             return False
 
