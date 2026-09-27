@@ -241,3 +241,40 @@ class EventParticipantAPITestCase(APITestCase):
         response = self.client.delete(url)
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_add_participant_same_email_different_events_success(self):
+        second_event = Event.objects.create(
+            title="Second Tech Event",
+            status=EventStatus.PLANNED,
+            organization=self.organization,
+        )
+        second_event_participant_list_url = reverse(
+            "events:event_participant_list",
+            kwargs={"event_id": second_event.pk},
+        )
+
+        self.client.force_authenticate(user=self.owner)
+        payload = {
+            "name": self.participant.name,
+            "email": self.participant.email,
+        }
+
+        response = self.client.post(second_event_participant_list_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["email"], self.participant.email)
+
+        self.assertEqual(
+            EventParticipant.objects.filter(email=self.participant.email).count(),
+            2,
+        )
+        self.assertTrue(
+            EventParticipant.objects.filter(
+                event=self.event, email=self.participant.email
+            ).exists()
+        )
+        self.assertTrue(
+            EventParticipant.objects.filter(
+                event=second_event, email=self.participant.email
+            ).exists()
+        )
