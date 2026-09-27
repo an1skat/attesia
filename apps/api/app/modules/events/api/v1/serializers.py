@@ -2,7 +2,11 @@ from typing import ClassVar
 
 from rest_framework import serializers
 
-from app.modules.events.models import Event, EventStatus
+from app.modules.events.models import (
+    Event,
+    EventParticipant,
+    EventStatus,
+)
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -70,3 +74,27 @@ class EventUpdateSerializer(serializers.ModelSerializer):
             "ends_at",
         )
         extra_kwargs: ClassVar[dict] = {field: {"required": False} for field in fields}
+
+
+class EventParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventParticipant
+        fields = (
+            "id",
+            "name",
+            "email",
+            "source",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "source", "created_at", "updated_at")
+
+
+class EventParticipantCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventParticipant
+        fields = (
+            "name",
+            "email",
+            "user",
+        )

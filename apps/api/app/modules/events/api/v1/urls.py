@@ -3,6 +3,8 @@ from django.urls import path
 from app.modules.events.api.v1.views import (
     EventDetailView,
     EventListView,
+    EventParticipantDetailView,
+    EventParticipantListView,
     OrganizationEventListView,
 )
 
@@ -14,5 +16,15 @@ urlpatterns = [
         "organizations/<int:organization_id>/events/",
         OrganizationEventListView.as_view(),
         name="organization_event_list_create",
+    ),
+    path(
+        "events/<int:event_id>/participants/",
+        EventParticipantListView.as_view(),
+        name="event_participant_list",
+    ),
+    path(
+        "events/<int:event_id>/participants/<int:participant_id>/",
+        EventParticipantDetailView.as_view(),
+        name="event_participant_detail",
     ),
 ]
