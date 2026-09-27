@@ -50,6 +50,11 @@ class EventListView(APIView, EventPagination):
 class EventDetailView(APIView):
     permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
 
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [AllowAny()]
+        return [IsOrganizationAdminOrOwnerOrReadOnly()]
+
     def get(self, request, pk):
         event = get_object_or_404(get_all_events(), pk=pk)
         serializer = EventSerializer(event)
