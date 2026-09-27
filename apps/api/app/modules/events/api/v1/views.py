@@ -3,13 +3,13 @@ from typing import ClassVar
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.modules.events.api.v1.permissions import (
-    IsOrganizationAdminOrOwner,
     IsOrganizationAdminOrOwnerOrReadOnly,
+    # IsOrganizationAdminOrOwner,
+    IsOrganizationMemberOrAdminForWrite,
 )
 from app.modules.events.api.v1.serializers import (
     EventCreateSerializer,
@@ -34,7 +34,7 @@ class EventPagination(PageNumberPagination):
 
 
 class EventListView(APIView, EventPagination):
-    permission_classes: ClassVar[list] = [AllowAny]
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
 
     def get(self, request):
         events = get_all_events()
@@ -49,11 +49,6 @@ class EventListView(APIView, EventPagination):
 
 class EventDetailView(APIView):
     permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            return [AllowAny()]
-        return [IsOrganizationAdminOrOwnerOrReadOnly()]
 
     def get(self, request, pk):
         event = get_object_or_404(get_all_events(), pk=pk)
@@ -75,7 +70,7 @@ class EventDetailView(APIView):
 
 
 class OrganizationEventListView(APIView, EventPagination):
-    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwner]
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
 
     def get(self, request, organization_id):
         organization = get_object_or_404(Organization, pk=organization_id)
@@ -104,15 +99,11 @@ class OrganizationEventListView(APIView, EventPagination):
 
 
 class EventParticipantListView(APIView, EventPagination):
-    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            return [AllowAny()]
-        return [IsOrganizationAdminOrOwnerOrReadOnly()]
+    permission_classes: ClassVar[list] = [IsOrganizationMemberOrAdminForWrite]
 
     def get(self, request, event_id):
         event = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, event)
         participants = get_event_participants(event_id=event.id)
 
         page = self.paginate_queryset(participants, request, view=self)

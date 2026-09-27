@@ -70,7 +70,8 @@ class EventParticipantAPITestCase(APITestCase):
             },
         )
 
-    def test_get_participants_anonymous_success(self):
+    def test_get_participants_by_organization_member_success(self):
+        self.client.force_authenticate(user=self.member)
         response = self.client.get(self.participant_list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -79,7 +80,13 @@ class EventParticipantAPITestCase(APITestCase):
         self.assertEqual(response.data["results"][0]["id"], self.participant.id)
         self.assertEqual(response.data["results"][0]["email"], "john@example.com")
 
+    def test_get_participants_anonymous_unauthorized(self):
+        response = self.client.get(self.participant_list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_get_participants_pagination_structure(self):
+        self.client.force_authenticate(user=self.member)
         response = self.client.get(self.participant_list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -89,6 +96,7 @@ class EventParticipantAPITestCase(APITestCase):
         self.assertIn("results", response.data)
 
     def test_get_participants_non_existent_event_returns_404(self):
+        self.client.force_authenticate(user=self.member)
         url = reverse(
             "events:event_participant_list",
             kwargs={"event_id": 99999},
