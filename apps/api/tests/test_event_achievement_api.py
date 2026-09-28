@@ -154,7 +154,7 @@ class EventAchievementAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.stranger)
         payload = {
             "title": "Participation Certificate",
-            "kind": EventAchievementKind.PARTICIPANT,
+            "kind": EventAchievementKind.PARTICIPATION,
         }
 
         response = self.client.post(self.achievement_list_url, data=payload)
@@ -172,18 +172,6 @@ class EventAchievementAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("rank", response.data)
-
-    def test_add_achievement_duplicate_rank_for_place_returns_400(self):
-        self.client.force_authenticate(user=self.owner)
-        payload = {
-            "title": "Another 1st Place",
-            "kind": EventAchievementKind.PLACE,
-            "rank": 1,
-        }
-
-        response = self.client.post(self.achievement_list_url, data=payload)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_add_achievement_nomination_resets_rank_to_none(self):
         self.client.force_authenticate(user=self.owner)

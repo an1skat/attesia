@@ -26,8 +26,9 @@ class EventParticipantStatus(models.TextChoices):
 
 class EventAchievementKind(models.TextChoices):
     PLACE = "place", _("Place")
+    FINALIST = "finalist", _("Finalist")
     NOMINATION = "nomination", _("Nomination")
-    PARTICIPANT = "participant", _("Participant")
+    PARTICIPATION = "participation", _("Participation")
 
 
 class Event(models.Model):
@@ -192,7 +193,7 @@ class EventAchievement(models.Model):
     kind = models.CharField(
         max_length=15,
         choices=EventAchievementKind.choices,
-        default=EventAchievementKind.PARTICIPANT,
+        default=EventAchievementKind.PARTICIPATION,
         db_index=True,
     )
     rank = models.PositiveIntegerField(
@@ -218,19 +219,25 @@ class EventAchievement(models.Model):
                 condition=Q(rank__gt=0) | Q(rank__isnull=True),
                 name="event_achievement_rank_positive",
             ),
-            models.UniqueConstraint(
-                fields=["event", "rank"],
-                condition=Q(kind=EventAchievementKind.PLACE),
-                name="unique_place_rank_per_event",
+            CheckConstraint(
+                condition=~Q(kind=EventAchievementKind.PLACE) | Q(rank__isnull=False),
+                name="event_achievement_rank_is_not_null",
+            ),
+            CheckConstraint(
+                condition=Q(kind=EventAchievementKind.PLACE) | Q(rank__isnull=True),
+                name="event_achievement_rank_is_null",
             ),
         ]
 
     def clean(self):
         super().clean()
-        if self.kind == EventAchievementKind.PLACE and self.rank is None:
-            raise ValidationError(
-                {"rank": _("Rank is required for 'place' achievements.")}
-            )
+        if self.kind == EventAchievementKind.PLACE:
+            if self.rank is None or self.rank <= 0:
+                raise ValidationError(
+                    {"rank": _("Rank is required for 'place' achievements.")}
+                )
+        else:
+            self.rank = None
 
     def __str__(self):
         if self.rank:

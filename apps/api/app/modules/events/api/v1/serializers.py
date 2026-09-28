@@ -139,11 +139,12 @@ class EventAchievementCreateSerializer(serializers.ModelSerializer):
         kind = attrs.get("kind")
         rank = attrs.get("rank")
 
-        if kind == EventAchievementKind.PLACE and rank is None:
-            raise serializers.ValidationError(
-                {"rank": "Rank is required when kind is 'place'."}
-            )
-        if kind != EventAchievementKind.PLACE and rank is not None:
+        if kind == EventAchievementKind.PLACE:
+            if rank is None or rank <= 0:
+                raise serializers.ValidationError(
+                    {"rank": "Rank is required when kind is 'place'."}
+                )
+        else:
             attrs["rank"] = None
 
         return attrs
