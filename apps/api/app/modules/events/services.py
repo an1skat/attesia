@@ -6,6 +6,7 @@ from rest_framework.generics import get_object_or_404
 
 from app.modules.events.models import (
     Event,
+    EventAchievement,
     EventParticipant,
     EventParticipantStatus,
 )
@@ -97,3 +98,42 @@ class EventService:
             participant.delete()
         except ObjectDoesNotExist:
             raise DRFValidationError({"detail": "Participant not found in this event."})
+
+    @staticmethod
+    @transaction.atomic
+    def add_achievement(
+        *,
+        event: Event,
+        validated_data: dict,
+    ) -> EventAchievement:
+
+        achievement = EventAchievement(
+            event=event,
+            title=validated_data["title"],
+            kind=validated_data["kind"],
+            rank=validated_data.get("rank"),
+            description=validated_data.get("description", ""),
+        )
+        try:
+            achievement.full_clean()
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict)
+        achievement.save()
+        return achievement
+
+    @staticmethod
+    @transaction.atomic
+    def remove_achievement(
+        *,
+        event: Event,
+        achievement_id: int,
+    ) -> None:
+        try:
+            achievement = get_object_or_404(
+                EventAchievement,
+                id=achievement_id,
+                event=event,
+            )
+            achievement.delete()
+        except ObjectDoesNotExist:
+            raise DRFValidationError({"detail": "Achievement not found in this event."})

@@ -12,6 +12,8 @@ from app.modules.events.api.v1.permissions import (
     IsOrganizationMemberOrAdminForWrite,
 )
 from app.modules.events.api.v1.serializers import (
+    EventAchievementCreateSerializer,
+    EventAchievementSerializer,
     EventCreateSerializer,
     EventParticipantCreateSerializer,
     EventParticipantSerializer,
@@ -20,6 +22,7 @@ from app.modules.events.api.v1.serializers import (
 )
 from app.modules.events.selectors import (
     get_all_events,
+    get_event_achievements,
     get_event_participants,
     get_events_by_organization,
 )
@@ -141,5 +144,53 @@ class EventParticipantDetailView(APIView):
         EventService.remove_participant(
             event=event,
             participant_id=participant_id,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EventAchievementListView(APIView, EventPagination):
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
+
+    def get(self, request, event_id):
+        events = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, events)
+
+        achievements = get_event_achievements(event_id=event_id)
+
+        page = self.paginate_queryset(achievements, request, view=self)
+        if page is not None:
+            serializer = EventAchievementSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = EventAchievementSerializer(achievements, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, event_id):
+        event = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, event)
+
+        serializer = EventAchievementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        achievement = EventService.add_achievement(
+            event=event,
+            validated_data=serializer.validated_data,
+        )
+
+        return Response(
+            EventAchievementSerializer(achievement).data, status=status.HTTP_201_CREATED
+        )
+
+
+class EventAchievementDetailView(APIView):
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
+
+    def delete(self, request, event_id, achievement_id):
+        event = get_object_or_404(get_all_events(), pk=event_id)
+        self.check_object_permissions(request, event)
+
+        EventService.remove_achievement(
+            event=event,
+            achievement_id=achievement_id,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)

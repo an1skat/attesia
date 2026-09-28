@@ -24,6 +24,13 @@ class EventParticipantStatus(models.TextChoices):
     IMPORT = "import", _("Import")
 
 
+class EventAchievementKind(models.TextChoices):
+    PLACE = "place", _("Place")
+    FINALIST = "finalist", _("Finalist")
+    NOMINATION = "nomination", _("Nomination")
+    PARTICIPATION = "participation", _("Participation")
+
+
 class Event(models.Model):
     Status = EventStatus
 
@@ -170,3 +177,72 @@ class EventParticipant(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.email}) - {self.event.title}"
+
+
+class EventAchievement(models.Model):
+    Status = EventAchievementKind
+
+    objects: models.Manager = models.Manager()
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="event_achievements",
+    )
+    title = models.CharField(max_length=50)
+    kind = models.CharField(
+        max_length=15,
+        choices=EventAchievementKind.choices,
+        default=EventAchievementKind.PARTICIPATION,
+        db_index=True,
+    )
+    rank = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("Numerical rank for place achievements (e.g. 1 for 1st place)"),
+    )
+    description = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Event Achievement")
+        verbose_name_plural = _("Event Achievements")
+        ordering: ClassVar[list] = ["kind", "rank", "title"]
+        constraints: ClassVar[list] = [
+            CheckConstraint(
+                condition=Q(kind__in=EventAchievementKind.values),
+                name="event_achievement_kind_valid_choice",
+            ),
+            CheckConstraint(
+                condition=Q(rank__gt=0) | Q(rank__isnull=True),
+                name="event_achievement_rank_positive",
+            ),
+            CheckConstraint(
+                condition=~Q(kind=EventAchievementKind.PLACE) | Q(rank__isnull=False),
+                name="event_achievement_rank_is_not_null",
+            ),
+            CheckConstraint(
+                condition=Q(kind=EventAchievementKind.PLACE) | Q(rank__isnull=True),
+                name="event_achievement_rank_is_null",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.kind == EventAchievementKind.PLACE:
+            if self.rank is None or self.rank <= 0:
+                raise ValidationError(
+                    {"rank": _("Rank is required for 'place' achievements.")}
+                )
+        else:
+            if self.rank is not None:
+                raise ValidationError(
+                    {"rank": "Rank must be empty (null) for non-place achievements."}
+                )
+
+    def __str__(self):
+        if self.rank:
+            return f"{self.title} (#{self.rank}) - {self.event.title}"
+        return f"{self.title} - {self.event.title}"
