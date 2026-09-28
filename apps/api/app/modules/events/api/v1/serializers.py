@@ -4,6 +4,8 @@ from rest_framework import serializers
 
 from app.modules.events.models import (
     Event,
+    EventAchievement,
+    EventAchievementKind,
     EventParticipant,
     EventStatus,
 )
@@ -98,3 +100,50 @@ class EventParticipantCreateSerializer(serializers.ModelSerializer):
             "email",
             "user",
         )
+
+
+class EventAchievementSerializer(serializers.ModelSerializer):
+    kind = serializers.ChoiceField(choices=EventAchievementKind.choices)
+
+    class Meta:
+        model = EventAchievement
+        fields = (
+            "id",
+            "title",
+            "kind",
+            "rank",
+            "description",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "created_at",
+            "updated_at",
+        )
+
+
+class EventAchievementCreateSerializer(serializers.ModelSerializer):
+    kind = serializers.ChoiceField(choices=EventAchievementKind.choices)
+
+    class Meta:
+        model = EventAchievement
+        fields = (
+            "title",
+            "kind",
+            "rank",
+            "description",
+        )
+
+    def validate(self, attrs):
+        kind = attrs.get("kind")
+        rank = attrs.get("rank")
+
+        if kind == EventAchievementKind.PLACE and rank is None:
+            raise serializers.ValidationError(
+                {"rank": "Rank is required when kind is 'place'."}
+            )
+        if kind != EventAchievementKind.PLACE and rank is not None:
+            attrs["rank"] = None
+
+        return attrs

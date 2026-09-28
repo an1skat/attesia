@@ -2,6 +2,7 @@ from django.db.models import QuerySet
 
 from app.modules.events.models import (
     Event,
+    EventAchievement,
     EventParticipant,
 )
 
@@ -22,3 +23,7 @@ def get_event_participants(event_id: int) -> QuerySet[EventParticipant]:
     return (
         EventParticipant.objects.filter(event_id=event_id).select_related("user").all()
     )
+
+
+def get_event_achievements(event_id: int) -> QuerySet[EventAchievement]:
+    return EventAchievement.objects.filter(event_id=event_id).all()
