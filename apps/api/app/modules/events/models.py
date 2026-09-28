@@ -237,7 +237,10 @@ class EventAchievement(models.Model):
                     {"rank": _("Rank is required for 'place' achievements.")}
                 )
         else:
-            self.rank = None
+            if self.rank is not None:
+                raise ValidationError(
+                    {"rank": "Rank must be empty (null) for non-place achievements."}
+                )
 
     def __str__(self):
         if self.rank:

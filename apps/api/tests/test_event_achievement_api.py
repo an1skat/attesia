@@ -85,10 +85,11 @@ class EventAchievementAPITestCase(APITestCase):
         )
         self.assertEqual(response.data["results"][0]["rank"], 1)
 
-    def test_get_achievements_anonymous_unauthorized(self):
+    def test_get_achievements_anonymous_success(self):
         response = self.client.get(self.achievement_list_url)
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
 
     def test_get_achievements_pagination_structure(self):
         self.client.force_authenticate(user=self.member)
@@ -173,7 +174,7 @@ class EventAchievementAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("rank", response.data)
 
-    def test_add_achievement_nomination_resets_rank_to_none(self):
+    def test_add_achievement_nomination_with_rank_returns_400(self):
         self.client.force_authenticate(user=self.owner)
         payload = {
             "title": "Best Pitch",
@@ -184,8 +185,8 @@ class EventAchievementAPITestCase(APITestCase):
 
         response = self.client.post(self.achievement_list_url, data=payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIsNone(response.data["rank"])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("rank", response.data)
 
     def test_add_achievement_invalid_kind_returns_400(self):
         self.client.force_authenticate(user=self.owner)

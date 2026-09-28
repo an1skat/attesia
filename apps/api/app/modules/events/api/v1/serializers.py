@@ -145,6 +145,9 @@ class EventAchievementCreateSerializer(serializers.ModelSerializer):
                     {"rank": "Rank is required when kind is 'place'."}
                 )
         else:
-            attrs["rank"] = None
+            if rank is not None:
+                raise serializers.ValidationError(
+                    {"rank": "Rank must be empty (null) for non-place achievements."}
+                )
 
         return attrs

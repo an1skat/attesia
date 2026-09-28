@@ -149,7 +149,7 @@ class EventParticipantDetailView(APIView):
 
 
 class EventAchievementListView(APIView, EventPagination):
-    permission_classes: ClassVar[list] = [IsOrganizationMemberOrAdminForWrite]
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
 
     def get(self, request, event_id):
         events = get_object_or_404(get_all_events(), pk=event_id)
