@@ -9,6 +9,7 @@ from app.modules.events.models import (
     EventAchievement,
     EventParticipant,
     EventParticipantStatus,
+    ParticipantAchievement,
 )
 from app.modules.organizations.models import Organization
 
@@ -137,3 +138,47 @@ class EventService:
             achievement.delete()
         except ObjectDoesNotExist:
             raise DRFValidationError({"detail": "Achievement not found in this event."})
+
+    @staticmethod
+    @transaction.atomic
+    def award_achievement_to_participant(
+        *,
+        event: Event,
+        validated_data: dict,
+    ) -> ParticipantAchievement:
+        participant = validated_data["participant"]
+        achievement = validated_data["achievement"]
+
+        if participant.event_id != event.id or achievement.event_id != event.id:
+            raise DRFValidationError(
+                {
+                    "detail": "Participant and achievement must belong to this specific event."
+                }
+            )
+
+        participant_achievement = ParticipantAchievement(
+            participant=participant,
+            achievement=achievement,
+        )
+
+        try:
+            participant_achievement.full_clean()
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict)
+        participant_achievement.save()
+        return participant_achievement
+
+    @staticmethod
+    @transaction.atomic
+    def revoke_achievement_from_participant(
+        *,
+        event: Event,
+        participant_achievement_id: int,
+    ) -> None:
+        participant_achievement = get_object_or_404(
+            ParticipantAchievement,
+            id=participant_achievement_id,
+            achievement__event=event,
+        )
+
+        participant_achievement.delete()
