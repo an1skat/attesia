@@ -8,6 +8,7 @@ from app.modules.events.models import (
     EventAchievementKind,
     EventParticipant,
     EventStatus,
+    ParticipantAchievement,
 )
 
 
@@ -149,5 +150,70 @@ class EventAchievementCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"rank": "Rank must be empty (null) for non-place achievements."}
                 )
+
+        return attrs
+
+
+class ParticipantAchievementSerializer(serializers.ModelSerializer):
+    participant_name = serializers.CharField(source="participant.name", read_only=True)
+    participant_email = serializers.CharField(
+        source="participant.email", read_only=True
+    )
+    achievement_title = serializers.CharField(
+        source="achievement.title", read_only=True
+    )
+    achievement_kind = serializers.CharField(source="achievement.kind", read_only=True)
+    achievement_rank = serializers.IntegerField(
+        source="achievement.rank", read_only=True
+    )
+
+    class Meta:
+        model = ParticipantAchievement
+        fields = (
+            "id",
+            "participant",
+            "participant_name",
+            "participant_email",
+            "achievement",
+            "achievement_title",
+            "achievement_kind",
+            "achievement_rank",
+            "awarded_at",
+        )
+        read_only_fields = ("id", "awarded_at")
+
+
+class ParticipantAchievementCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParticipantAchievement
+        fields = (
+            "participant",
+            "achievement",
+        )
+
+    def validate(self, attrs):
+        participant = attrs.get("participant")
+        achievement = attrs.get("achievement")
+
+        if participant and achievement and participant.event_id != achievement.event_id:
+            raise serializers.ValidationError(
+                {
+                    "achievement": (
+                        "The achievement does not belong to the same event as the participant."
+                    )
+                }
+            )
+
+        if ParticipantAchievement.objects.filter(
+            participant=participant,
+            achievement=achievement,
+        ):
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": [
+                        "This achievement has already been awarded to this participant."
+                    ]
+                }
+            )
 
         return attrs

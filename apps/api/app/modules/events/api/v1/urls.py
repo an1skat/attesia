@@ -8,6 +8,8 @@ from app.modules.events.api.v1.views import (
     EventParticipantDetailView,
     EventParticipantListView,
     OrganizationEventListView,
+    ParticipantAchievementDetailView,
+    ParticipantAchievementListCreateView,
 )
 
 app_name = "events"
@@ -38,5 +40,15 @@ urlpatterns = [
         "events/<int:event_id>/achievements/<int:achievement_id>/",
         EventAchievementDetailView.as_view(),
         name="event_achievement_detail",
+    ),
+    path(
+        "events/<int:event_id>/participant-achievements/",
+        ParticipantAchievementListCreateView.as_view(),
+        name="participant_achievement_list",
+    ),
+    path(
+        "events/<int:event_id>/participant-achievements/<int:pk>/",
+        ParticipantAchievementDetailView.as_view(),
+        name="participant_achievement_detail",
     ),
 ]

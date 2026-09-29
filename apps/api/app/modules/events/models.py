@@ -29,6 +29,7 @@ class EventAchievementKind(models.TextChoices):
     FINALIST = "finalist", _("Finalist")
     NOMINATION = "nomination", _("Nomination")
     PARTICIPATION = "participation", _("Participation")
+    OTHER = "other", _("Other")
 
 
 class Event(models.Model):
@@ -246,3 +247,53 @@ class EventAchievement(models.Model):
         if self.rank:
             return f"{self.title} (#{self.rank}) - {self.event.title}"
         return f"{self.title} - {self.event.title}"
+
+
+class ParticipantAchievement(models.Model):
+    objects: models.Manager = models.Manager()
+
+    participant = models.ForeignKey(
+        EventParticipant,
+        on_delete=models.CASCADE,
+        related_name="participant_achievements",
+    )
+    achievement = models.ForeignKey(
+        EventAchievement,
+        on_delete=models.CASCADE,
+        related_name="participant_achievements",
+    )
+
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Participant Achievement")
+        verbose_name_plural = _("Participant Achievements")
+        ordering: ClassVar[list] = ["-awarded_at"]
+        constraints: ClassVar[list] = [
+            UniqueConstraint(
+                fields=["participant", "achievement"],
+                name="participant_achievement_unique",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if (
+            self.participant_id
+            and self.achievement_id
+            and self.participant.event_id != self.achievement.event_id
+        ):
+            raise ValidationError(
+                {
+                    "achievement": _(
+                        "The achievement does not belong to the same event as the participant."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.participant.name} - {self.achievement.title}"
