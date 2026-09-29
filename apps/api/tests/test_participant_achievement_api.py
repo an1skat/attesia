@@ -88,15 +88,21 @@ class ParticipantAchievementAPITestCase(APITestCase):
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["participant"], self.participant.id)
-        self.assertEqual(response.data[0]["achievement"], self.achievement.id)
-        self.assertEqual(response.data[0]["participant_name"], "Alice")
-        self.assertEqual(response.data[0]["achievement_title"], "1st Place")
+        results = response.data["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["participant"], self.participant.id)
+        self.assertEqual(results[0]["achievement"], self.achievement.id)
+        self.assertEqual(results[0]["participant_name"], "Alice")
+        self.assertEqual(results[0]["achievement_title"], "1st Place")
 
     def test_get_participant_achievements_anonymous_unauthorized(self):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_participant_achievements_stranger_forbidden(self):
+        self.client.force_authenticate(user=self.stranger)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_participant_achievements_filter_by_participant(self):
         second_participant = EventParticipant.objects.create(
@@ -111,7 +117,15 @@ class ParticipantAchievementAPITestCase(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_get_participant_achievements_invalid_participant_id_returns_400(self):
+        self.client.force_authenticate(user=self.member)
+
+        response = self.client.get(f"{self.list_url}?participant_id=abc")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("participant_id", response.data)
 
     def test_award_achievement_by_owner_success(self):
         new_participant = EventParticipant.objects.create(

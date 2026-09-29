@@ -3,7 +3,6 @@ from typing import ClassVar
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,6 +20,7 @@ from app.modules.events.api.v1.serializers import (
     EventSerializer,
     EventUpdateSerializer,
     ParticipantAchievementCreateSerializer,
+    ParticipantAchievementFilterSerializer,
     ParticipantAchievementSerializer,
 )
 from app.modules.events.selectors import (
@@ -200,20 +200,26 @@ class EventAchievementDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class ParticipantAchievementListCreateView(APIView):
-    permission_classes: ClassVar[list] = [
-        IsAuthenticated,
-        IsOrganizationAdminOrOwnerOrReadOnly,
-    ]
+class ParticipantAchievementListCreateView(APIView, EventPagination):
+    permission_classes: ClassVar[list] = [IsOrganizationMemberOrAdminForWrite]
 
     def get(self, request, event_id):
         event = get_object_or_404(get_all_events(), pk=event_id)
         self.check_object_permissions(request, event)
 
+        filter_serializer = ParticipantAchievementFilterSerializer(
+            data=request.query_params,
+        )
+        filter_serializer.is_valid(raise_exception=True)
+
         achievements = get_participant_achievement_from_event(
             event=event,
-            participant_id=request.query_params.get("participant_id"),
+            participant_id=filter_serializer.validated_data.get("participant_id"),
         )
+        page = self.paginate_queryset(achievements, request, view=self)
+        if page is not None:
+            serializer = ParticipantAchievementSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
         serializer = ParticipantAchievementSerializer(achievements, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -234,10 +240,7 @@ class ParticipantAchievementListCreateView(APIView):
 
 
 class ParticipantAchievementDetailView(APIView):
-    permission_classes: ClassVar[list] = [
-        IsAuthenticated,
-        IsOrganizationAdminOrOwnerOrReadOnly,
-    ]
+    permission_classes: ClassVar[list] = [IsOrganizationMemberOrAdminForWrite]
 
     def delete(self, request, event_id: int, pk: int):
         event = get_object_or_404(get_all_events(), pk=event_id)

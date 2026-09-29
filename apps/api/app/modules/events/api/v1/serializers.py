@@ -183,6 +183,10 @@ class ParticipantAchievementSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "awarded_at")
 
 
+class ParticipantAchievementFilterSerializer(serializers.Serializer):
+    participant_id = serializers.IntegerField(required=False)
+
+
 class ParticipantAchievementCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParticipantAchievement
@@ -207,7 +211,7 @@ class ParticipantAchievementCreateSerializer(serializers.ModelSerializer):
         if ParticipantAchievement.objects.filter(
             participant=participant,
             achievement=achievement,
-        ):
+        ).exists():
             raise serializers.ValidationError(
                 {
                     "non_field_errors": [
