@@ -4,6 +4,7 @@ from app.modules.events.api.v1.views import (
     EventAchievementDetailView,
     EventAchievementListView,
     EventDetailView,
+    EventFinalizeView,
     EventListView,
     EventParticipantDetailView,
     EventParticipantListView,
@@ -14,6 +15,9 @@ from app.modules.events.api.v1.views import (
 
 app_name = "events"
 urlpatterns = [
+    path(
+        "events/<int:pk>/finalize/", EventFinalizeView.as_view(), name="event_finalize"
+    ),
     path("events/", EventListView.as_view(), name="event_list"),
     path("events/<int:pk>/", EventDetailView.as_view(), name="event_detail"),
     path(
