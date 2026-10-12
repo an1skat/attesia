@@ -4,20 +4,27 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.generics import get_object_or_404
 
+from app.modules.events.finalization import (
+    build_finalization_payload,
+    hash_finalization_payload,
+)
 from app.modules.events.models import (
     Event,
     EventAchievement,
+    EventFinalization,
     EventParticipant,
     EventParticipantStatus,
+    EventStatus,
     ParticipantAchievement,
 )
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationMembership
 
 
 class EventService:
     @staticmethod
     @transaction.atomic
     def create_event(*, organization: Organization, validated_data: dict) -> Event:
+        _reject_finished_status(validated_data)
         event = Event(
             organization=organization,
             title=validated_data["title"],
@@ -37,6 +44,8 @@ class EventService:
     @staticmethod
     @transaction.atomic
     def update_event(*, event: Event, validated_data: dict) -> Event:
+        event = _lock_editable_event(event)
+        _reject_finished_status(validated_data)
         for field, value in validated_data.items():
             setattr(event, field, value)
 
@@ -55,6 +64,7 @@ class EventService:
         validated_data: dict,
         source: str = EventParticipantStatus.MANUAL,
     ) -> EventParticipant:
+        event = _lock_editable_event(event)
         email = validated_data["email"].lower().strip()
 
         if EventParticipant.objects.filter(event=event, email=email).exists():
@@ -90,6 +100,7 @@ class EventService:
         event: Event,
         participant_id: int,
     ) -> None:
+        event = _lock_editable_event(event)
         try:
             participant = get_object_or_404(
                 EventParticipant,
@@ -108,6 +119,7 @@ class EventService:
         validated_data: dict,
     ) -> EventAchievement:
 
+        event = _lock_editable_event(event)
         achievement = EventAchievement(
             event=event,
             title=validated_data["title"],
@@ -129,6 +141,7 @@ class EventService:
         event: Event,
         achievement_id: int,
     ) -> None:
+        event = _lock_editable_event(event)
         try:
             achievement = get_object_or_404(
                 EventAchievement,
@@ -146,6 +159,7 @@ class EventService:
         event: Event,
         validated_data: dict,
     ) -> ParticipantAchievement:
+        event = _lock_editable_event(event)
         participant = validated_data["participant"]
         achievement = validated_data["achievement"]
 
@@ -175,6 +189,7 @@ class EventService:
         event: Event,
         participant_achievement_id: int,
     ) -> None:
+        event = _lock_editable_event(event)
         participant_achievement = get_object_or_404(
             ParticipantAchievement,
             id=participant_achievement_id,
@@ -182,3 +197,54 @@ class EventService:
         )
 
         participant_achievement.delete()
+
+    @staticmethod
+    @transaction.atomic
+    def finalize_event(*, event: Event, finalized_by) -> EventFinalization:
+        event = Event.objects.select_for_update().get(pk=event.pk)
+        if event.finalizations.exists():
+            raise DRFValidationError(
+                {"detail": "This event has already been finalized."}
+            )
+        if event.status != EventStatus.IN_PROGRESS:
+            raise DRFValidationError(
+                {"status": "Only an in-progress event can be finalized."}
+            )
+        if not OrganizationMembership.objects.filter(
+            organization_id=event.organization_id,
+            user=finalized_by,
+            role__in=[
+                OrganizationMembership.Role.OWNER,
+                OrganizationMembership.Role.ADMIN,
+            ],
+        ).exists():
+            raise DRFValidationError(
+                {"detail": "Only an organization owner or admin can finalize an event."}
+            )
+        event.status = EventStatus.FINISHED
+        event.save(update_fields=["status", "updated_at"])
+        payload = build_finalization_payload(event)
+        return EventFinalization.objects.create(
+            event=event,
+            version=1,
+            schema_version=payload["schema_version"],
+            payload=payload,
+            payload_hash=hash_finalization_payload(payload),
+            finalized_by=finalized_by,
+        )
+
+
+def _lock_editable_event(event):
+    event = Event.objects.select_for_update().get(pk=event.pk)
+    if event.status == EventStatus.FINISHED or event.finalizations.exists():
+        raise DRFValidationError(
+            {"detail": "Finished events are sealed against editing."}
+        )
+    return event
+
+
+def _reject_finished_status(data):
+    if data.get("status") == EventStatus.FINISHED:
+        raise DRFValidationError(
+            {"status": "Use the dedicated event finalization operation."}
+        )

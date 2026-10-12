@@ -251,3 +251,24 @@ class ParticipantAchievementDetailView(APIView):
             participant_achievement_id=pk,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EventFinalizeView(APIView):
+    permission_classes: ClassVar[list] = [IsOrganizationAdminOrOwnerOrReadOnly]
+
+    def post(self, request, pk):
+        event = get_object_or_404(get_all_events(), pk=pk)
+        self.check_object_permissions(request, event)
+        finalization = EventService.finalize_event(
+            event=event, finalized_by=request.user
+        )
+        return Response(
+            {
+                "id": finalization.pk,
+                "version": finalization.version,
+                "schema_version": finalization.schema_version,
+                "payload_hash": finalization.payload_hash,
+                "finalized_at": finalization.finalized_at,
+            },
+            status=status.HTTP_201_CREATED,
+        )

@@ -1,10 +1,17 @@
 import uuid
+from typing import ClassVar
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from app.modules.events.models import Event
+from app.modules.events.models import (
+    Event,
+    EventAchievementKind,
+    EventFinalization,
+    EventParticipant,
+    ParticipantAchievement,
+)
 from app.modules.organizations.models import Organization
 
 
@@ -22,6 +29,21 @@ class Credential(models.Model):
     event = models.ForeignKey(
         Event,
         on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credentials",
+    )
+
+    participant = models.ForeignKey(
+        EventParticipant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credentials",
+    )
+    finalization = models.ForeignKey(
+        EventFinalization,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="credentials",
@@ -70,3 +92,23 @@ class CredentialAchievement(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+
+    kind = models.CharField(
+        max_length=15, choices=EventAchievementKind.choices, null=True, blank=True
+    )
+    rank = models.PositiveIntegerField(null=True, blank=True)
+    participant_achievement = models.ForeignKey(
+        ParticipantAchievement,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credential_snapshots",
+    )
+
+    class Meta:
+        constraints: ClassVar[list] = [
+            models.UniqueConstraint(
+                fields=["credential", "participant_achievement"],
+                name="credential_source_achievement_unique",
+            ),
+        ]

@@ -297,3 +297,27 @@ class ParticipantAchievement(models.Model):
 
     def __str__(self) -> str:
         return f"{self.participant.name} - {self.achievement.title}"
+
+
+class EventFinalization(models.Model):
+    event = models.ForeignKey(
+        Event, on_delete=models.PROTECT, related_name="finalizations"
+    )
+    version = models.PositiveIntegerField(default=1)
+    schema_version = models.PositiveIntegerField(default=1)
+    payload = models.JSONField()
+    payload_hash = models.CharField(max_length=64)
+    finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="event_finalizations",
+    )
+    finalized_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints: ClassVar[list] = [
+            UniqueConstraint(
+                fields=["event", "version"], name="event_finalization_version_unique"
+            ),
+        ]
