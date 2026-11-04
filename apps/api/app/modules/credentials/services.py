@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from app.modules.credentials.models import Credential, CredentialAchievement
@@ -108,4 +109,34 @@ class CredentialService:
                 for result in results
             ]
         )
+        return credential
+
+    @staticmethod
+    @transaction.atomic
+    def revoke_credential(*, credential: Credential, revoked_by, reason) -> Credential:
+        credential = Credential.objects.select_for_update().get(pk=credential.pk)
+        if credential.organization_id is None or not (
+            OrganizationMembership.objects.filter(
+                organization_id=credential.organization_id,
+                user=revoked_by,
+                role__in=[
+                    OrganizationMembership.Role.OWNER,
+                    OrganizationMembership.Role.ADMIN,
+                ],
+            ).exists()
+        ):
+            raise ValidationError(
+                {
+                    "detail": "Only an owner or admin of the issuer organization can revoke credentials."
+                }
+            )
+        if credential.revoked_at is not None:
+            raise ValidationError({"detail": "The credential is already revoked."})
+        normalized_reason = (reason or "").strip()
+        if not normalized_reason:
+            raise ValidationError({"reason": "A revocation reason is required."})
+        credential.revoked_at = timezone.now()
+        credential.revoked_by = revoked_by
+        credential.revocation_reason = normalized_reason
+        credential.save(update_fields=["revoked_at", "revoked_by", "revocation_reason"])
         return credential
