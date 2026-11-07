@@ -6,11 +6,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.modules.events.api.v1.permissions import (
-    IsOrganizationAdminOrOwnerOrReadOnly,
-    # IsOrganizationAdminOrOwner,
-    IsOrganizationMemberOrAdminForWrite,
-)
 from app.modules.events.api.v1.serializers import (
     EventAchievementCreateSerializer,
     EventAchievementSerializer,
@@ -31,6 +26,11 @@ from app.modules.events.selectors import (
     get_participant_achievement_from_event,
 )
 from app.modules.events.services import EventService
+from app.modules.organizations.api.permissions import (
+    IsOrganizationAdminOrOwnerOrReadOnly,
+    # IsOrganizationAdminOrOwner,
+    IsOrganizationMemberOrAdminForWrite,
+)
 from app.modules.organizations.models import Organization
 
 
